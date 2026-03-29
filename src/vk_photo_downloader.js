@@ -9,6 +9,8 @@
 // @match        https://*.vkontakte.ru/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_download
+// @updateURL    https://raw.githubusercontent.com/userartemexist/VK_photo_downloader/refs/heads/main/src/vk_photo_downloader.js
+// @downloadURL  https://raw.githubusercontent.com/userartemexist/VK_photo_downloader/refs/heads/main/src/vk_photo_downloader.js
 // @connect      vk.com
 // @connect      *.vk.com
 // @connect      *.vkontakte.ru
