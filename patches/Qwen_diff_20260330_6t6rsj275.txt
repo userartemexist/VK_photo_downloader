@@ -1,0 +1,35 @@
+--- a/src/vk_photo_downloader.js
++++ b/src/vk_photo_downloader.js
+@@ -54,13 +54,7 @@ const UI_CONSTANTS = {
+ const injectStyles = () => {
+     if (document.getElementById('sf-styles')) return;
+     const style = document.createElement('style');
+     style.id = 'sf-styles';
+-    const cursorSVG =  `image/svg+xml;utf8,` `<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'` `>` `<line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/` `>` `<line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/` `>` `<line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/` `>` `<line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/` `>` `<circle cx='24' cy='24' r='3' fill='black'/` `>` `</svg` `>` ;
++    const cursorSVG = `image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
+     style.textContent = `
+ /* Panel Container */
+ #sf-dl-panel {
+@@ -488,6 +482,8 @@ const VKPhotoModule = {
+         this.resetState(false);
+         if (this.uiPanel) this.uiPanel.style.display = 'none';
+         this.stopObserver();
++        if (this.spaWatcher) { clearInterval(this.spaWatcher); this.spaWatcher = null; }
+     },
+ 
+     initDragDrop: function() {
+@@ -532,8 +528,14 @@ const VKPhotoModule = {
+ },
+ 
+ setMode: function(type) {
+-    if (this.isScanning) { this.resetState(false); }
+-    this.abortFlag = false; this.selectionMode = type;
++    if (this.isScanning || this.selectionMode) { this.resetState(false); }
++    this.abortFlag = false;
++    this.selectionMode = type;
++    // При выборе второй границы первая сохраняется
++    if (type === 'start' && this.endId !== null) { }
++    else if (type === 'end' && this.startId !== null) { }
+     document.body.classList.add('sf-selecting-mode');
+     this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
+     const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
