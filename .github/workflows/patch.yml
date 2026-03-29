@@ -2,11 +2,6 @@ name: Apply Patches
 
 on:
   workflow_dispatch:
-    inputs:
-      file_name:
-        description: 'If src/ >1 file, enter filename or skip'
-        required: false
-        default: ''
 
 jobs:
   patch:
@@ -33,62 +28,18 @@ jobs:
           count=$(wc -l < src_files.txt)
           echo "file_count=$count" >> $GITHUB_OUTPUT
           
+          echo "Files in src/:" >> patch_application.log
+          cat src_files.txt >> patch_application.log
+          
           if [ "$count" -eq 0 ]; then
             echo "ERROR: No source files found in src/" >> patch_application.log
             exit 1
           fi
-          
-          echo "Available files in src/:" >> patch_application.log
-          cat src_files.txt >> patch_application.log
-          
-          if [ "$count" -eq 1 ] && [ -z "${{ github.event.inputs.file_name }}" ]; then
-            file_path=$(cat src_files.txt)
-            file_name=$(basename "$file_path")
-            echo "selected_file=$file_name" >> $GITHUB_OUTPUT
-            echo "Auto-selected: $file_name" >> patch_application.log
-          elif [ -n "${{ github.event.inputs.file_name }}" ]; then
-            if [ ! -f "src/${{ github.event.inputs.file_name }}" ]; then
-              echo "ERROR: File not found: src/${{ github.event.inputs.file_name }}" >> patch_application.log
-              exit 1
-            fi
-            echo "selected_file=${{ github.event.inputs.file_name }}" >> $GITHUB_OUTPUT
-            echo "Selected: ${{ github.event.inputs.file_name }}" >> patch_application.log
-          else
-            echo "ERROR: Multiple files in src/, please specify file_name:" >> patch_application.log
-            exit 1
-          fi
 
-      - name: Extract file_id
-        id: file_id
-        run: |
-          file_name="${{ steps.scan.outputs.selected_file }}"
-          file_id="${file_name%.*}"
-          echo "file_id=$file_id" >> $GITHUB_OUTPUT
-          echo "File ID: $file_id" >> patch_application.log
-
-      - name: Create folders
-        run: |
-          mkdir -p "patches/${{ steps.file_id.outputs.file_id }}"
-          mkdir -p manifests
-
-      - name: Load or create manifest
-        run: |
-          manifest_file="manifests/${{ steps.file_id.outputs.file_id }}.json"
-          
-          if [ -f "$manifest_file" ]; then
-            echo "Manifest found: $manifest_file" >> patch_application.log
-            jq -r '.appliedPatches[].filename' "$manifest_file" > applied_list.txt 2>/dev/null || touch applied_list.txt
-          else
-            echo "Creating new manifest" >> patch_application.log
-            touch applied_list.txt
-            echo '{"fileId":"${{ steps.file_id.outputs.file_id }}","fileName":"${{ steps.scan.outputs.selected_file }}","createdAt":"'"$(date -u)"'","lastUpdated":"'"$(date -u)"'","appliedPatches":[],"totalPatchesApplied":0,"currentVersion":"1.0.0"}' > "$manifest_file"
-          fi
-
-      - name: Find patches
+      - name: Scan patches
         id: patches
         run: |
-          patches_folder="patches/${{ steps.file_id.outputs.file_id }}"
-          find "$patches_folder" -type f \( -name "*.patch" -o -name "*.txt" -o -name "*.diff" \) 2>/dev/null | sort > all_patches.txt || touch all_patches.txt
+          find patches/ -type f \( -name "*.patch" -o -name "*.txt" -o -name "*.diff" \) 2>/dev/null | sort > all_patches.txt || touch all_patches.txt
           total=$(wc -l < all_patches.txt)
           echo "total_patches=$total" >> $GITHUB_OUTPUT
           echo "Patches found: $total" >> patch_application.log
@@ -99,91 +50,133 @@ jobs:
           success_count=0
           skip_count=0
           fail_count=0
-          patches_folder="patches/${{ steps.file_id.outputs.file_id }}"
+          not_found_count=0
+          
+          echo "" >> patch_application.log
+          echo "=== APPLYING PATCHES ===" >> patch_application.log
           
           while IFS= read -r patch_file; do
             [ -z "$patch_file" ] && continue
             patch_name=$(basename "$patch_file")
-            echo "--- $patch_name ---" >> patch_application.log
             
+            # Извлекаем целевой файл из заголовка патча
+            target_file=$(head -1 "$patch_file" | sed 's/^--- a\///' | sed 's/^--- //' | head -1)
+            
+            echo "" >> patch_application.log
+            echo "--- $patch_name ---" >> patch_application.log
+            echo "Target file: $target_file" >> patch_application.log
+            
+            # Проверяем существует ли файл
+            if [ ! -f "$target_file" ]; then
+              echo "⚠ SKIP: File not found: $target_file" >> patch_application.log
+              not_found_count=$((not_found_count + 1))
+              continue
+            fi
+            
+            # Извлекаем file_id для манифеста
+            file_id=$(basename "$target_file")
+            file_id="${file_id%.*}"
+            
+            # Загружаем или создаём манифест
+            manifest_file="manifests/${file_id}.json"
+            mkdir -p manifests
+            if [ -f "$manifest_file" ]; then
+              jq -r '.appliedPatches[].filename' "$manifest_file" > applied_list.txt 2>/dev/null || touch applied_list.txt
+            else
+              touch applied_list.txt
+              echo "{\"fileId\":\"$file_id\",\"fileName\":\"$target_file\",\"createdAt\":\"$(date -u)\",\"lastUpdated\":\"$(date -u)\",\"appliedPatches\":[],\"totalPatchesApplied\":0}" > "$manifest_file"
+            fi
+            
+            # Проверяем не был ли патч уже применён
             if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
-              echo "SKIPPED (already applied)" >> patch_application.log
+              echo "⚠ SKIP: Already applied" >> patch_application.log
               skip_count=$((skip_count + 1))
               continue
             fi
             
-            # git apply ищет по контенту, а не по имени файла
-            # --directory=src говорит искать файл в папке src/
-            # --ignore-space-change игнорирует разницу в пробелах
-            if git apply --directory=src --ignore-space-change "$patch_file" >> patch_application.log 2>&1; then
-              echo "SUCCESS" >> patch_application.log
+            # Применяем патч
+            if patch -p1 -f --ignore-whitespace < "$patch_file" >> patch_application.log 2>&1; then
+              echo "✓ SUCCESS" >> patch_application.log
               echo "$patch_name" >> applied_list.txt
               success_count=$((success_count + 1))
             else
-              echo "FAILED" >> patch_application.log
+              echo "✗ FAILED" >> patch_application.log
               fail_count=$((fail_count + 1))
             fi
-            
-            rm -f "$fixed_patch"
             
           done < all_patches.txt
           
           echo "success_count=$success_count" >> $GITHUB_OUTPUT
           echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
           echo "fail_count=$fail_count" >> $GITHUB_OUTPUT
-          
-          echo "=== LOG CONTENTS ==="
-          cat patch_application.log
-          
-          if [ "$fail_count" -gt 0 ] && [ "$success_count" -eq 0 ]; then
-            exit 1
-          fi
+          echo "not_found_count=$not_found_count" >> $GITHUB_OUTPUT
 
       - name: Generate summary
         run: |
+          echo "" >> patch_application.log
           echo "=== SUMMARY ===" >> patch_application.log
           echo "Total patches: ${{ steps.patches.outputs.total_patches }}" >> patch_application.log
           echo "Applied: ${{ steps.apply.outputs.success_count }}" >> patch_application.log
-          echo "Skipped: ${{ steps.apply.outputs.skip_count }}" >> patch_application.log
+          echo "Skipped (already applied): ${{ steps.apply.outputs.skip_count }}" >> patch_application.log
+          echo "Skipped (file not found): ${{ steps.apply.outputs.not_found_count }}" >> patch_application.log
           echo "Failed: ${{ steps.apply.outputs.fail_count }}" >> patch_application.log
           
+          # Выводим summary в консоль для быстрой проверки
+          echo ""
+          echo "=========================================="
+          echo "           PATCH APPLY SUMMARY           "
+          echo "=========================================="
+          echo "Total:   ${{ steps.patches.outputs.total_patches }}"
+          echo "Applied: ${{ steps.apply.outputs.success_count }}"
+          echo "Skipped: ${{ steps.apply.outputs.skip_count }} (manifest) + ${{ steps.apply.outputs.not_found_count }} (not found)"
+          echo "Failed:  ${{ steps.apply.outputs.fail_count }}"
+          echo "=========================================="
+          echo ""
+          
           if [ "${{ steps.apply.outputs.fail_count }}" -gt 0 ]; then
+            echo "❌ Some patches failed. Check log for details."
             echo "WARNING: Some patches failed" >> patch_application.log
             exit 1
           else
+            echo "✅ All patches processed successfully!"
             echo "All patches processed successfully" >> patch_application.log
           fi
 
-      - name: Update manifest
+      - name: Update manifests
         run: |
-          manifest_file="manifests/${{ steps.file_id.outputs.file_id }}.json"
-          total_applied=$(wc -l < applied_list.txt 2>/dev/null || echo 0)
-          current_date=$(date -u)
-          
-          jq --arg date "$current_date" \
-             --argjson total "$total_applied" \
-             '.lastUpdated = $date | .totalPatchesApplied = $total' \
-             "$manifest_file" > "$manifest_file.tmp"
-          
-          if [ -s applied_list.txt ]; then
-            cat applied_list.txt | jq -R '.' | jq -s '.' > applied_json.tmp
-            jq --arg date "$current_date" \
-               --slurpfile applied applied_json.tmp \
-               '.appliedPatches = ($applied[] | map({filename: ., appliedAt: $date}))' \
-               "$manifest_file.tmp" > "$manifest_file"
-            rm -f applied_json.tmp
-          else
-            mv "$manifest_file.tmp" "$manifest_file"
-          fi
-          
-          rm -f "$manifest_file.tmp"
+          for manifest_file in manifests/*.json; do
+            [ -f "$manifest_file" ] || continue
+            
+            file_id=$(basename "$manifest_file" .json)
+            applied_list="manifests/${file_id}_applied.txt"
+            
+            if [ -f "$applied_list" ] && [ -s "$applied_list" ]; then
+              total_applied=$(wc -l < "$applied_list")
+              current_date=$(date -u)
+              
+              jq --arg date "$current_date" \
+                 --argjson total "$total_applied" \
+                 '.lastUpdated = $date | .totalPatchesApplied = $total' \
+                 "$manifest_file" > "$manifest_file.tmp"
+              
+              cat "$applied_list" | jq -R '.' | jq -s '.' > applied_json.tmp
+              jq --arg date "$current_date" \
+                 --slurpfile applied applied_json.tmp \
+                 '.appliedPatches = ($applied[] | map({filename: ., appliedAt: $date}))' \
+                 "$manifest_file.tmp" > "$manifest_file"
+              
+              rm -f "$manifest_file.tmp" applied_json.tmp
+            fi
+            
+            rm -f "$applied_list"
+          done
 
       - name: Commit changes
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add src/ patch_application.log manifests/ 2>/dev/null || true
-          git commit -m "Apply patches $(date -u)" || echo "No changes to commit"
+          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Apply patches $(date -u)"
           git push
 
       - name: Upload log
