@@ -1,0 +1,229 @@
+name: Apply Patches (Universal)
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_name:
+        description: 'Имя файла в src/ (оставьте пустым для авто-выбора 1 файла)'
+        required: false
+        default: ''
+        type: string
+      deploy_pages:
+        description: 'Деплоить на GitHub Pages после успеха? (true/false)'
+        required: false
+        default: 'false'
+        type: boolean
+      selective_mode:
+        description: 'Пропускать уже применённые патчи? (true/false)'
+        required: false
+        default: 'true'
+        type: boolean
+
+jobs:
+  apply-patches:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Initialize log file
+        run: |
+          echo "=== PATCH APPLICATION LOG ===" > patch_application.log
+          echo "Date: $(date -u)" >> patch_application.log
+          echo "File: ${{ github.event.inputs.file_name || 'auto' }}" >> patch_application.log
+          echo "" >> patch_application.log
+      
+      - name: Scan src/ for files
+        id: scan
+        run: |
+          # Находим все файлы в src/ (любые расширения)
+          find src/ -type f 2>/dev/null | sort > src_files.txt || touch src_files.txt
+          count=$(wc -l < src_files.txt)
+          echo "file_count=$count" >> $GITHUB_OUTPUT
+          
+          if [ "$count" -eq 0 ]; then
+            echo "❌ No source files found in src/" >> patch_application.log
+            echo "Please add at least one file to src/ folder" >> patch_application.log
+            exit 1
+          fi
+          
+          if [ "$count" -eq 1 ] && [ -z "${{ github.event.inputs.file_name }}" ]; then
+            # Авто-выбор если 1 файл и имя не указано
+            file_path=$(cat src_files.txt)
+            file_name=$(basename "$file_path")
+            echo "selected_file=$file_name" >> $GITHUB_OUTPUT
+            echo "📁 Auto-selected: $file_name" >> patch_application.log
+          elif [ -n "${{ github.event.inputs.file_name }}" ]; then
+            # Использовать указанное имя
+            if [ ! -f "src/${{ github.event.inputs.file_name }}" ]; then
+              echo "❌ File not found: src/${{ github.event.inputs.file_name }}" >> patch_application.log
+              echo "Available files:" >> patch_application.log
+              cat src_files.txt >> patch_application.log
+              exit 1
+            fi
+            echo "selected_file=${{ github.event.inputs.file_name }}" >> $GITHUB_OUTPUT
+            echo "📁 Selected: ${{ github.event.inputs.file_name }}" >> patch_application.log
+          else
+            # Несколько файлов без указания имени
+            echo "❌ Multiple files found in src/, please specify file_name:" >> patch_application.log
+            cat src_files.txt >> patch_application.log
+            exit 1
+          fi
+      
+      - name: Extract file_id (name without extension)
+        id: file_id
+        run: |
+          file_name="${{ steps.scan.outputs.selected_file }}"
+          # Удаляем расширение для file_id
+          file_id="${file_name%.*}"
+          echo "file_id=$file_id" >> $GITHUB_OUTPUT
+          echo "🔖 File ID: $file_id" >> patch_application.log
+      
+      - name: Create folders if not exist
+        run: |
+          mkdir -p "patches/${{ steps.file_id.outputs.file_id }}"
+          mkdir -p manifests
+      
+      - name: Load or create manifest
+        id: manifest
+        run: |
+          manifest_file="manifests/${{ steps.file_id.outputs.file_id }}.json"
+          
+          if [ -f "$manifest_file" ]; then
+            echo "📋 Manifest found: $manifest_file" >> patch_application.log
+            # Извлекаем список применённых патчей
+            jq -r '.appliedPatches[].filename' "$manifest_file" > applied_list.txt 2>/dev/null || touch applied_list.txt
+          else
+            echo "📋 Creating new manifest" >> patch_application.log
+            touch applied_list.txt
+            # Создаём шаблон манифеста
+            cat > "$manifest_file" << EOF
+{
+  "fileId": "${{ steps.file_id.outputs.file_id }}",
+  "fileName": "${{ steps.scan.outputs.selected_file }}",
+  "createdAt": "$(date -u)",
+  "lastUpdated": "$(date -u)",
+  "appliedPatches": [],
+  "totalPatchesApplied": 0,
+  "currentVersion": "1.0.0"
+}
+EOF
+          fi
+      
+      - name: Find all patches for this file
+        id: patches
+        run: |
+          patches_folder="patches/${{ steps.file_id.outputs.file_id }}"
+          find "$patches_folder" -name "*.patch" -o -name "*.txt" -o -name "*.diff" 2>/dev/null | sort > all_patches.txt || touch all_patches.txt
+          total=$(wc -l < all_patches.txt)
+          echo "total_patches=$total" >> $GITHUB_OUTPUT
+          echo "📦 Patches found: $total" >> patch_application.log
+      
+      - name: Apply patches
+        id: apply
+        run: |
+          success_count=0
+          skip_count=0
+          fail_count=0
+          patches_folder="patches/${{ steps.file_id.outputs.file_id }}"
+          
+          while IFS= read -r patch_file; do
+            [ -z "$patch_file" ] && continue
+            patch_name=$(basename "$patch_file")
+            echo "--- $patch_name ---" >> patch_application.log
+            
+            # Проверяем манифест (если selective_mode=true)
+            if [ "${{ github.event.inputs.selective_mode }}" = "true" ]; then
+              if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
+                echo "⏭️  SKIPPED (already applied)" >> patch_application.log
+                skip_count=$((skip_count + 1))
+                continue
+              fi
+            fi
+            
+            # Применяем патч
+            if git apply "$patch_file" 2>> patch_application.log; then
+              echo "✅ SUCCESS" >> patch_application.log
+              echo "$patch_name" >> applied_list.txt
+              success_count=$((success_count + 1))
+            else
+              echo "❌ FAILED" >> patch_application.log
+              fail_count=$((fail_count + 1))
+            fi
+            echo "" >> patch_application.log
+          done < all_patches.txt
+          
+          echo "success_count=$success_count" >> $GITHUB_OUTPUT
+          echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
+          echo "fail_count=$fail_count" >> $GITHUB_OUTPUT
+      
+      - name: Generate summary
+        id: summary
+        run: |
+          echo "=== SUMMARY ===" >> patch_application.log
+          echo "Total patches in folder: ${{ steps.patches.outputs.total_patches }}" >> patch_application.log
+          echo "✅ Newly applied: ${{ steps.apply.outputs.success_count }}" >> patch_application.log
+          echo "⏭️  Skipped (already applied): ${{ steps.apply.outputs.skip_count }}" >> patch_application.log
+          echo "❌ Failed: ${{ steps.apply.outputs.fail_count }}" >> patch_application.log
+          echo "" >> patch_application.log
+          
+          if [ "${{ steps.apply.outputs.fail_count }}" -gt 0 ]; then
+            echo "⚠️  ATTENTION: Some patches failed. Check log above." >> patch_application.log
+            echo "status=failed" >> $GITHUB_OUTPUT
+          else
+            echo "✅ All patches processed successfully!" >> patch_application.log
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Update manifest file
+        if: always()
+        run: |
+          manifest_file="manifests/${{ steps.file_id.outputs.file_id }}.json"
+          
+          # Считаем общее количество применённых патчей
+          total_applied=$(wc -l < applied_list.txt 2>/dev/null || echo 0)
+          
+          # Обновляем манифест
+          jq --arg date "$(date -u)" \
+             --argjson total "$total_applied" \
+             --slurpfile applied <(cat applied_list.txt 2>/dev/null | jq -R '.' | jq -s '.') \
+             '.lastUpdated = $date | .totalPatchesApplied = $total | .appliedPatches = ($applied[] | {filename: ., appliedAt: $date})' \
+             "$manifest_file" > "$manifest_file.tmp" && mv "$manifest_file.tmp" "$manifest_file"
+      
+      - name: Copy base file to src/ (if base/ exists)
+        if: always()
+        run: |
+          # Если есть папка base/, копируем базовый файл в src/ перед коммитом
+          if [ -d "base" ] && [ -f "base/${{ steps.scan.outputs.selected_file }}" ]; then
+            cp "base/${{ steps.scan.outputs.selected_file }}" "src/${{ steps.scan.outputs.selected_file }}"
+            echo "📁 Copied base file to src/" >> patch_application.log
+          fi
+      
+      - name: Commit changes
+        if: always()
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add "src/${{ steps.scan.outputs.selected_file }}" 2>/dev/null || true
+          git add patch_application.log
+          git add "manifests/${{ steps.file_id.outputs.file_id }}.json"
+          git commit -m "Apply patches + update manifest ($(date -u))" || echo "No changes to commit"
+          git push
+      
+      - name: Deploy to GitHub Pages
+        if: github.event.inputs.deploy_pages == 'true' && steps.summary.outputs.status == 'success'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+      
+      - name: Upload log as artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: patch-application-log
+          path: patch_application.log
+          retention-days: 30
