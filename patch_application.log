@@ -1,5 +1,5 @@
 === PATCH APPLICATION LOG ===
-Date: Sun Mar 29 21:14:41 UTC 2026
+Date: Sun Mar 29 21:35:41 UTC 2026
 Files in src/:
 src/vk_photo_downloader.js
 Patches found: 1
@@ -7,11 +7,44 @@ Patches found: 1
 === APPLYING PATCHES ===
 
 --- Qwen_573.diff ---
-Target file: src/vk_photo_downloader.js
-patching file src/vk_photo_downloader.js
+Target file: vk_photo_downloader.js
+Patch header:
+--- a/vk_photo_downloader.js
++++ b/vk_photo_downloader.js
+@@ -1,20 +1,20 @@
+⚠ Auto-fix: trying src/vk_photo_downloader.js
+can't find file to patch at input line 3
+Perhaps you used the wrong -p or --strip option?
+The text leading up to this was:
+--------------------------
+|--- a/vk_photo_downloader.js
+|+++ b/vk_photo_downloader.js
+--------------------------
+No file to patch.  Skipping patch.
 patch: **** malformed patch at line 26: @@ -27,10 +27,6 @@
 
 ✗ FAILED
+Error details:
+     stopPick ing: function() { this.isPicking = false; document.body.classList.remove('sf-selecting-mode'); this.updateStatus('Готов', 'green'); const btnA = document.getElementById('sf-btn-a') ; const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = false; if (btnB) btnB.disabled = true; this.toggleDownloadBtn(); },
+@@ -572,8 +551,8 @@
+     // DOWNLOAD
+     runDownload: functi on() {
+-        if (this.isProcessing) return; let photos = [];
++        if (this.isDownloading) return; let photos = [];
+         if (this.mode === 'range') { if (!this.cachedPhotos.length) return; photos = this.cachedPhotos; }
+         else { if (!thi s.pickedPhotos.length) return; photos = this.pickedPhotos.slice().sort((a, b) = > a.numericId - b.numericId); }
+-        this.isProcessing = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.dis abled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
++        this.isDownloading = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.dis abled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
+         const prefix = document.getElementById('sf-prefix').value.trim(); const width = String(photos.len gth).length;
+         const links = photos.map((p, i) = > ({ url: p.url, filename: (prefix ? `${prefix}_VK_` : 'VK_') + String(i + 1).padStart(width, '0') + '.jpg' }));
+         this.startDownloadQueue(links);
+@@ -590,7 +569,7 @@
+         this._finishDownload('✓ Готово!', 'green');
+     },
+-    _finishDownload: function(statusText , color) { this.updateStatus(statusText, color); this.isProcessing = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
++    _finishDownload: function(statusText , color) { this.updateStatus(statusText, color); this.isDownloading = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
+     calculateRealIndex: function(visualI ndex, total, isReverse) { return isReverse ? (total - visualIndex + 1) : visualIndex; }
+ };
 
 === SUMMARY ===
 Total patches: 1
