@@ -31,10 +31,6 @@ jobs:
           echo "Files in src/:" >> patch_application.log
           cat src_files.txt >> patch_application.log
           cat patch_application.log
-          
-          if [ "$count" -eq 0 ]; then
-            echo "ERROR: No source files found in src/" >> patch_application.log
-          fi
 
       - name: Scan patches
         id: patches
@@ -60,35 +56,46 @@ jobs:
             [ -z "$patch_file" ] && continue
             patch_name=$(basename "$patch_file")
             
-            target_file=$(head -1 "$patch_file" | sed 's/^--- a\///' | sed 's/^--- //' | head -1 | tr -d '\r' | xargs)
+            # Извлекаем путь из заголовка патча
+            header_path=$(head -1 "$patch_file" | sed 's/^--- a\///' | sed 's/^--- //' | head -1 | tr -d '\r' | xargs)
             
             echo "" >> patch_application.log
             echo "--- $patch_name ---" >> patch_application.log
-            echo "Target file: $target_file" >> patch_application.log
-            echo "Patch header:" >> patch_application.log
-            head -3 "$patch_file" >> patch_application.log
+            echo "Header path: $header_path" >> patch_application.log
             
-            if [ ! -f "$target_file" ] && [ -f "src/$target_file" ]; then
-              echo "⚠ Auto-fix: trying src/$target_file" >> patch_application.log
-              target_file="src/$target_file"
-            fi
+            # Определяем, где лежит файл и в какой директории применять патч
+            patch_dir="."
+            target_path="$header_path"
             
-            if [ ! -f "$target_file" ]; then
-              echo "⚠ SKIP: File not found: $target_file" >> patch_application.log
+            if [ -f "$header_path" ]; then
+              patch_dir="."
+              target_path="$header_path"
+            elif [ -f "src/$header_path" ]; then
+              patch_dir="src"
+              target_path="src/$header_path"
+              echo "⚠ Auto-fix: applying with -d src" >> patch_application.log
+            elif [ -f "src/${header_path#*/}" ]; then
+              # Если в заголовке уже есть src/, но файл в src/
+              patch_dir="src"
+              target_path="src/${header_path#*/}"
+              echo "⚠ Auto-fix: stripped duplicate src/" >> patch_application.log
+            else
+              echo "⚠ SKIP: File not found: $header_path or src/$header_path" >> patch_application.log
               not_found_count=$((not_found_count + 1))
               continue
             fi
             
-            file_id=$(basename "$target_file")
+            file_id=$(basename "$target_path")
             file_id="${file_id%.*}"
             
             manifest_file="manifests/${file_id}.json"
             mkdir -p manifests
+            
             if [ -f "$manifest_file" ]; then
               jq -r '.appliedPatches[].filename // empty' "$manifest_file" > applied_list.txt 2>/dev/null || touch applied_list.txt
             else
               touch applied_list.txt
-              echo "{\"fileId\":\"$file_id\",\"fileName\":\"$target_file\",\"createdAt\":\"$(date -u)\",\"lastUpdated\":\"$(date -u)\",\"appliedPatches\":[],\"totalPatchesApplied\":0}" | jq --indent 2 '.' > "$manifest_file"
+              echo "{\"fileId\":\"$file_id\",\"fileName\":\"$target_path\",\"createdAt\":\"$(date -u)\",\"lastUpdated\":\"$(date -u)\",\"appliedPatches\":[],\"totalPatchesApplied\":0}" | jq --indent 2 '.' > "$manifest_file"
             fi
             
             if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
@@ -97,14 +104,23 @@ jobs:
               continue
             fi
             
-            if patch -p1 -f --ignore-whitespace < "$patch_file" >> patch_application.log 2>&1; then
+            # Применяем патч с правильным -d
+            if [ "$patch_dir" = "src" ]; then
+              patch_cmd="patch -p1 -d src -f --ignore-whitespace < \"$patch_file\""
+            else
+              patch_cmd="patch -p1 -f --ignore-whitespace < \"$patch_file\""
+            fi
+            
+            echo "Running: $patch_cmd" >> patch_application.log
+            
+            if eval "$patch_cmd" >> patch_application.log 2>&1; then
               echo "✓ SUCCESS" >> patch_application.log
               echo "$patch_name" >> applied_list.txt
               success_count=$((success_count + 1))
             else
               echo "✗ FAILED" >> patch_application.log
               echo "Error details:" >> patch_application.log
-              tail -20 "$patch_file" >> patch_application.log
+              tail -30 "$patch_file" >> patch_application.log
               fail_count=$((fail_count + 1))
             fi
             
