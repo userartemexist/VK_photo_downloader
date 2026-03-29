@@ -138,12 +138,15 @@ jobs:
           if [ "${{ steps.apply.outputs.fail_count }}" -gt 0 ]; then
             echo "❌ Some patches failed. Check log for details."
             echo "WARNING: Some patches failed" >> patch_application.log
-            exit 1
           else
             echo "✅ All patches processed successfully!"
             echo "All patches processed successfully" >> patch_application.log
           fi
-
+          
+      - name: Fail if patches failed
+        if: steps.apply.outputs.fail_count > 0
+        run: exit 1
+        
       - name: Update manifests
         run: |
           for manifest_file in manifests/*.json; do
@@ -182,6 +185,7 @@ jobs:
           git push
 
       - name: Upload log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: patch-application-log
