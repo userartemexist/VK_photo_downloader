@@ -1,5 +1,5 @@
 === PATCH APPLICATION LOG ===
-Date: Sun Mar 29 19:11:46 UTC 2026
+Date: Sun Mar 29 21:14:41 UTC 2026
 Files in src/:
 src/vk_photo_downloader.js
 Patches found: 1
@@ -8,55 +8,10 @@ Patches found: 1
 
 --- Qwen_573.diff ---
 Target file: src/vk_photo_downloader.js
-Patch header:
---- a/src/vk_photo_downloader.js
-+++ b/src/vk_photo_downloader.js
-@@ -1,20 +1,20 @@
-Hmm...  Looks like a unified diff to me...
-can't find file to patch at input line 3
-Perhaps you used the wrong -p or --strip option?
-The text leading up to this was:
---------------------------
-|--- a/src/vk_photo_downloader.js
-|+++ b/src/vk_photo_downloader.js
---------------------------
-No file to patch.  Skipping patch.
+patching file src/vk_photo_downloader.js
 patch: **** malformed patch at line 26: @@ -27,10 +27,6 @@
 
 ✗ FAILED
-Error details:
- document.body.classList.add('sf-selecting-mode');
- this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
-@@ -516,7 +495,7 @@
- startAutoCalculation: function() {
--this.isProcessing = true;
-+this.isScanning = true;
- this.setRunButtonDisabled(true);
- this.updateStatus('Получение ссылок...', 'blue');
- this.currentRequestTracker = { xhr: null };
-@@ -528,11 +507,11 @@
- getPhotosByOffset(this.getListParam(), offset, count, (cur, total, bytes) => { this.totalBytesRange = bytes; this.updateStatus(`Скан: ${cur}/${total}`, 'blue'); this.updateLabels(); this.setProgress(cur / total * 100); }, () => this.abortFlag, (msg, color) => this.updateStatus(msg, color), this.currentRequestTracker, this.sizeRequestTracker)
--.then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isProcessing = false; this.toggleDownloadBtn(true); })
--.catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isProcessing = false; this.setProgress(0); });
-+.then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
-+.catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
- },
- // PICK MODE
--togglePicking: function() { if (this.isProcessing) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
-+togglePicking: function() { if (this.isScanning || this.isDownloading) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
- stopPicking: function() { this.isPicking = false; document.body.classList.remove('sf-selecting-mode'); this.updateStatus('Готов', 'green'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = false; if (btnB) btnB.disabled = true; this.toggleDownloadBtn(); },
- handlePickClick: function(photoId, listParam) {
-@@ -572,8 +551,8 @@
- // DOWNLOAD
- runDownload: function() {
--if (this.isProcessing) return; let photos = [];
-+if (this.isDownloading) return; let photos = [];
- if (this.mode === 'range') { if (!this.cachedPhotos.length) return; photos = this.cachedPhotos; }
- else { if (!this.pickedPhotos.length) return; photos = this.pickedPhotos.slice().sort((a, b) => a.numericId - b.numericId); }
--this.isProcessing = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
-+this.isDownloading
-
-=== END APPLYING PATCHES ===
 
 === SUMMARY ===
 Total patches: 1
