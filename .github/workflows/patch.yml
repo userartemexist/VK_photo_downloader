@@ -68,6 +68,12 @@ jobs:
             echo "--- $patch_name ---" >> patch_application.log
             echo "Target file: $target_file" >> patch_application.log
             
+            # Если файл не найден — пробуем добавить src/
+            if [ ! -f "$target_file" ] && [ -f "src/$target_file" ]; then
+            echo "⚠ File not found at root, trying src/$target_file" >> patch_application.log
+            target_file="src/$target_file"
+            fi
+            
             # Проверяем существует ли файл
             if [ ! -f "$target_file" ]; then
               echo "⚠ SKIP: File not found: $target_file" >> patch_application.log
