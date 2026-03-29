@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         VK Photos Downloader (Unified v5.7.3)
+// @name         VK Photos Downloader (Unified v5.7.31)
 // @namespace    http://tampermonkey.net/
-// @version      5.7.3
+// @version      5.7.31
 // @description  Скачивание фото. Жесткая блокировка при загрузке, сохранение состояния, улучшенный курсор.
 // @author       Final Release
 // @match        https://vk.com/*
