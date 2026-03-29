@@ -59,7 +59,7 @@ jobs:
             [ -z "$patch_file" ] && continue
             patch_name=$(basename "$patch_file")
             
-            target_file=$(head -1 "$patch_file" | sed 's/^--- a\///' | sed 's/^--- //' | head -1)
+            target_file=$(head -1 "$patch_file" | sed 's/^--- a\///' | sed 's/^--- //' | head -1 | tr -d '\r' | xargs)
             
             echo "" >> patch_application.log
             echo "--- $patch_name ---" >> patch_application.log
