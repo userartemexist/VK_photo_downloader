@@ -64,4 +64,206 @@
 -
 -    /* Track Logic */
 -    .sf-toggle-track { 
--        width: 40px; height: 20px; background: #4CAF50; /* Green for Range *
+-        width: 40px; height: 20px; background: #4CAF50; /* Green for Range * /
+-        border-radius: 10px; position: relative; cursor: pointer; 
+-        border: none; transition: background 0.2s; 
+-    }
+-    .sf-toggle-track.active { 
+-        background: #2 a5885; /* Blue for Pick */
++    /* Tab Buttons Logic */
++    .sf-toggle-label {
++        flex: 1; cursor: pointer; text-align: center;
++        font-size: 13px; font-weight: normal; color: #555;
++        background: transparent; border: 1px solid transparent;
++        border-radius: 4px; padding: 6px 10px; margin: 0 2px;
++        transition: all 0.2s;
+     }
+-
+-    .sf-toggle-thumb { 
+-        position: absolute; top: 2px; left: 2px; /* Default Left (Range) */
+-        width: 16px; height: 16px; backgro und: #fff; 
+-        border-radius: 50%; transition: left 0.2s; 
++    .sf-toggle-label.active-blue {
++        font-weight: bold; color: #2a5885;
++        background: #fff; border-color: #2a5885; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+     }
+-    .sf-toggle-track.active .sf-toggle-thumb { 
+-        left: 22px; /* Move Right (Pick) */
++    .sf-toggle-label.active-yellow {
++        font-weight: bold; color: #FB8C00;
++        background: #fff; border-color: #FB8C00; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+     }
+     
+@@ -242,7 +234,7 @@
+     // State
+     startVisual: null, endVisual: null, totalPhotos: null,
+     startReal: null, endReal: null,
+     startId: null, endId: null,
+     pickedPhotos: [], pendingRequests: {}, totalPickSize: 0,
+     cachedPhotos: [], totalBytesRange: 0,
+     mode: 'range', selectionMode: null, isPicking: false,
+-    isProcessing: false, abortFlag: false, isFetchingMeta: false,
++    isScanning: false, isDownloading: false, abortFlag: false, isFetchingMeta: false,
+     uiPanel: null, gmSupported: false,
+     lastAlbumId: null, lastUrl: null, spaWatcher: null,
+     observer: null, observerActive: false, isDrawing: false, debounceTimer: null,
+@@ -254,8 +246,7 @@
+     init: function() {
+         injectStyles();
+         this.gmSupported = (typeof GM_download !== 'undefined');
+         this.lastUrl = window.location.href;
+         this.sizeRequestTracker = { current : null };
+         this.checkAlbumChange();
+         this.addAlbumButton();
+         this.initClickListener();
+         this.initSpaNavigationWatcher();
+     },
+-    isViewerOpen: function() {
+-        return !!doc ument.querySelector(VK_SELECTORS.VIEWER_CONTENT) || !!document.querySelector(VK_SELECTORS.VIEWER_LAYER);
++    isViewerOpen: function() {
++        return /^https:\/\/(www\.)?vk\.com\/photo/i.test(window.location.href);
+     },
+     getStorageKey: function() { return `sf_pick_${this.lastAlbumId}`; },
+@@ -306,17 +297,7 @@
+     syncPanelVisibility: function() {
+-        if (!this.uiPanel)  return;
+-        
+-        // Если идет скачивание, панель должна быть видна
+-        if (this.isProcessing) return;
+-        
+-        const viewerOpen = this.isViewerOpen();
+-        
+-        // Soft Hide: Если п росмотрщик открыт, скрываем панель
+-        if (viewerOpen  & & this.uiPanel.style.display !== 'none') {
+-            this.uiPanel.style.display = 'none';
+-        } 
+-        // Soft Show: Если просмотрщик закрыт, показываем панель обратно
+-        else if (!vi ewerOpen  & & this.uiPanel.style.display === 'none'  & & !this.abortFlag) {
+-            this.uiPanel.style.display = 'block';
+-        }
++        // Панель больше не скрывается.
++        // Она всегда висит на месте, чтобы был виден процесс сканирования/скачивания.
++        // Блокировка кнопок реализована напрямую в initPanelEvents через isViewerOpen().
+     },
+     drawBadges: function() {
+@@ -375,7 +356,7 @@
+         this.startReal = null; this.endReal = null;
+         this.startVisual = null; this.endVisual = null;
+         this.startId = null; this.endId = null; this.totalPhotos = null;
+         this.picked Photos = []; this.totalPickSize = 0;
+         this.cachedPhotos = []; this.totalBytesRange = 0;
+-        this.isPicking = false; this.isProcessing = false;
++        this.isPicking = false; this.isScanning = false; this.isDownloading = false;
+         this.selectionMode = null; thi s.isDrawing = false;
+         this.isFetchingMeta = false;
+         document.body.classList.remove('sf-selecting-mode');
+@@ -396,7 +377,7 @@
+     createPanel: function() {
+         if (document.getElementById('s f-dl-panel')) return;
+         const panel = document.createElement('div');
+         panel.id = 'sf-dl-panel';
+-        panel.innerHTML = ` <div id= "sf-header " class= "sf-header " > <span class= "sf-header-title " >VK Photo Downloader v${SCRIPT_VERSION} </span > <button id= "sf-close-btn " class= "sf-close-btn " aria-label= "Закрыть панель " >× </button > </div > <div class= "sf-body " > <div class= "sf-toggle-container " > <label id= "lbl-range " class= "sf-toggle-label active-green " >ИНТЕРВАЛ </label > <div id= "sf-toggle-track " class= "sf-toggle-track " role= "switch " aria-checked= "false " aria-label= "Переключить режим " tabindex= "0 " > <div class= "sf-toggle-thumb " > </div > </div > <label id= "lbl-pick " class= "sf-toggle-label " >ВЫБОРОЧНО </label > </div > <table class= "sf-data-table " role= "presentation " > <thead > <tr > <th >НАЧАЛО </th > <th >КОНЕЦ </th > <th >ВСЕГО </th > <th id= "sf-size-header " >РАЗМЕР (МБ) </th > </tr > </thead > <tbody > <tr > <td > <span id= "sf-start-off " >#--</span > </td > <td > <span id= "sf-end-off " >#--</span > </td > <td > <span id= "sf-count " >0 </span > </td > <td > <span id= "sf-size " >--</span > </td > </tr > </tbody > </table > <div class= "sf-buttons-row " > <button id= "sf-btn-a " class= "flat_button sf-action-btn " >Начало </button > <button id= "sf-btn-b " class= "flat_button sf-action-btn " >Конец </button > </div > <div class= "sf-prefix-row " > <input type= "text " id= "sf-prefix " class= "sf-input-prefix " placeholder= "Префикс_VK_001.jpg " aria-label= "Префикс имени файла " > <button id= "sf-clear-prefix " class= "sf-clear-btn " aria-label= "Очистить префикс " >× </button > </div > <div id= "sf-status-block " class= "sf-status-block " role= "status " aria-live= "polite " > <div id= "sf-status-progress-bg " class= "sf-status-progress-bg sf-progress-hidden " > </div > <div id= "sf-status-text " class= "sf-status-text " >Готов </div > </div > <div class= "sf-footer-row " > <button id= "sf-btn-run " class= "flat_button button_primary sf-run-btn " disabled >СКАЧАТЬ </button > </div > </div >`;
++        panel.innerHTML = ` <div id= "sf-header " class= "sf-header " > <span class= "sf-header-title " >VK Photo Downloader v${SCRIPT_VERSION} </span > <button id= "sf-close-btn " class= "sf-close-btn " aria-label= "Закрыть панель " >× </button > </div > <div class= "sf-body " > <div class= "sf-toggle-container " > <label id= "lbl-range " class= "sf-toggle-label active-blue " tabindex= "0 " role= "button " >ИНТЕРВАЛ </label > <label id= "lbl-pick " class= "sf-toggle-label " tabindex= "0 " role= "button " >ВЫБОРОЧНО </label > </div > <table class= "sf-data-table " role= "presentation " > <thead > <tr > <th >НАЧАЛО </th > <th >КОНЕЦ </th > <th >ВСЕГО </th > <th id= "sf-size-header " >РАЗМЕР (МБ) </th > </tr > </thead > <tbody > <tr > <td > <span id= "sf-start-off " >#--</span > </td > <td > <span id= "sf-end-off " >#--</span > </td > <td > <span id= "sf-count " >0 </span > </td > <td > <span id= "sf-size " >--</span > </td > </tr > </tbody > </table > <div class= "sf-buttons-row " > <button id= "sf-btn-a " class= "flat_button sf-action-btn " >Начало </button > <button id= "sf-btn-b " class= "flat_button sf-action-btn " >Конец </button > </div > <div class= "sf-prefix-row " > <input type= "text " id= "sf-prefix " class= "sf-input-prefix " placeholder= "Префикс_VK_001.jpg " aria-label= "Префикс имени файла " > <button id= "sf-clear-prefix " class= "sf-clear-btn " aria-label= "Очистить префикс " >× </button > </div > <div id= "sf-status-block " class= "sf-status-block " role= "status " aria-live= "polite " > <div id= "sf-status-progress-bg " class= "sf-status-progress-bg sf-progress-hidden " > </div > <div id= "sf-status-text " class= "sf-status-text " >Готов </div > </div > <div class= "sf-footer-row " > <button id= "sf-btn-run " class= "flat_button button_primary sf-run-btn " disabled >СКАЧАТЬ </button > </div > </div >`;
+         document.body.appendChild(panel);
+         this.uiPanel = panel;
+         this.initPanelEvents();
+         this.initDragDrop();
+         if (!this.gmSupported) { this.updateStatus('Ошибка: нет  GM_download', 'red'); document.getElementById('sf-btn-run').disabled = true; }
+     },
+@@ -406,25 +387,23 @@
+     initPanelEvents: function() {
+          document.getElementById('sf-close-btn').onclick = () = > { this.hidePanel(); };
+          document.getElementById('sf-clear-prefix').onclick = () = > { document.getElementById('sf-prefix').value = ''; };
+          
+-         // FIX 3.2: Защита кнопок от нажатия при скачивании ИЛИ при открытом просмотрщике
+-         document.getElementById('s f-btn-a').onclick = () = > { if(this.isProcessing || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('start'); else this.togglePicking(); };
+-         document.getElementById('sf-btn-b').on click = () = > { if(this.isProcessing || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('end'); else this.stopPicking(); };
+-         document.getElementById('sf-btn-run').oncl ick = () = > { if(this.isProcessing || this.isViewerOpen()) return; this.runDownload(); };
++         // Защита кнопок от нажатия при скачивании ИЛИ при открытом просмотрщике
++         document.getElementById('s f-btn-a').onclick = () = > { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('start'); else this.togglePicking(); };
++         document.getElementById('sf-btn-b').on click = () = > { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('end'); else this.stopPicking(); };
++         document.getElementById('sf-btn-run').oncl ick = () = > { if(this.isDownloading || this.isViewerOpen()) return; this.runDownload(); };
+          
+-         const track = document.getElementById('sf-toggle-track');
+-         const toggleHandler = () = > { if(this.isProcessing || this.isViewerOpen()) return; this.switchMode(this.mode === 'range' ? 'pick' : 'range'); };
+-         track.onclick = toggleHandler;
+-         track.onkeydown = (e ) = > { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHandler(); } };
+-         document.getElementById('lbl-range').onclick = () = > { if (this.mode !== 'range') this.switchMode('range'); };
+-         document.getElementById('lbl-pick').onclick = () = > { if (this.mode !== 'pick') this.switchMode('pick'); };
++         const toggleHandler = () = > { if(this.isDownloading || this.isViewerOpen()) return; this.switchMode(this.mode === 'range' ? 'pick' : 'range'); };
++         const lblRange = document.getElementById('lbl-range');
++         const lblPick = document.getElementById('lbl-pick');
++         lblRange.onclick = toggleHandler;
++         lblRange.onkeydown = (e ) = > { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHandler(); } };
++         lblPick.onclick = toggleHandler;
++         lblPick.onkeydown = (e ) = > { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHandler(); } };
+     },
+     updateToggleUI: function(isRange) {
+-        const track = document.getElementById('sf-toggle-track');
+         const lblRange =  document.getElementById('lbl-range');
+         const lblPick = document.getElementById('lbl-pick');
+         const btnA = document.getElementById('sf-btn-a');
+         const btnB = document.getE lementById('sf-btn-b');
+-        if (!track || !btnA || !btnB) return;
+-
+-        track.classList.remove('active');
++        if (!btnA || !btnB) return;
+         lblRange.className = 'sf-toggle-label';
+         lblPick.className = 'sf-tog gle-label';
+         if (isRange) {
+-            lblRange.classList.add('active-green');
++            lblRange.classList.add('active-blue');
+             btnA.textContent = 'Начало'; btnB.textContent = 'Конец';
+             btnA.disabled = false; btnB .disabled = false;
+         } else {
+-            track.classList.add('active');
+-            lblPick.classList.add('active-blue');
++            lblPick.classList.add('active-yellow');
+             btnA.textContent = 'Подбор'; btnB.textContent = 'Готово ';
+             btnA.disabled = false; btnB.disabled = false;
+         }
+     },
+@@ -482,7 +461,7 @@
+     setMode: function(type) {
+-        if (this.isProcessing) { this.resetState(false); }
++        if (this.isScanning) { this.resetState(false); }
+         this.abortFlag = false; this.sele ctionMode = type;
+         document.body.classList.add('sf-selecting-mode');
+         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
+@@ -516,7 +495,7 @@
+     startAutoCalculation: function() {
+-        this.isProcessing = true;
++        this.isScanning = true;
+         this.setRunButtonDisabled(true);
+         this.u pdateStatus('Получение ссылок...', 'blue');
+         this.currentRequestTracker = { xhr: null };
+@@ -528,11 +507,11 @@
+         getPhotosByOffset(this.getListParam(), offset, count, (cur, total, bytes) = > { this.totalBytesRange = bytes; this.updateStatus(`Скан: ${cur}/${total}`, 'blue'); this.updateLabels(); this.setProgress(cur / total * 100); }, () = > this.abortFlag, (msg, color) = > this.updateStatus(msg, color), this.currentRequestTracker, this.sizeRequestTracker)
+-        .then((result) = > { if (this.abortFlag) return; result.photos.sort((a, b) = > a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this. endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos .length}/${countVal}`, 'orange'); this.isProcessing = false; this.toggleDownloadBtn(true); })
+-        .catch((e) = > { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isProcessing = false; this.setProgress(0); });
++        .then((result) = > { if (this.abortFlag) return; result.photos.sort((a, b) = > a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this. endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos .length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
++        .catch((e) = > { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
+     },
+     // PICK MODE
+-    togglePicking: function() {  if (this.isProcessing) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue '); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
++    togglePicking: function() {  if (this.isScanning || this.isDownloading) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue '); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
+     stopPick ing: function() { this.isPicking = false; document.body.classList.remove('sf-selecting-mode'); this.updateStatus('Готов', 'green'); const btnA = document.getElementById('sf-btn-a') ; const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = false; if (btnB) btnB.disabled = true; this.toggleDownloadBtn(); },
+@@ -572,8 +551,8 @@
+     // DOWNLOAD
+     runDownload: functi on() {
+-        if (this.isProcessing) return; let photos = [];
++        if (this.isDownloading) return; let photos = [];
+         if (this.mode === 'range') { if (!this.cachedPhotos.length) return; photos = this.cachedPhotos; }
+         else { if (!thi s.pickedPhotos.length) return; photos = this.pickedPhotos.slice().sort((a, b) = > a.numericId - b.numericId); }
+-        this.isProcessing = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.dis abled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
++        this.isDownloading = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.dis abled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
+         const prefix = document.getElementById('sf-prefix').value.trim(); const width = String(photos.len gth).length;
+         const links = photos.map((p, i) = > ({ url: p.url, filename: (prefix ? `${prefix}_VK_` : 'VK_') + String(i + 1).padStart(width, '0') + '.jpg' }));
+         this.startDownloadQueue(links);
+@@ -590,7 +569,7 @@
+         this._finishDownload('✓ Готово!', 'green');
+     },
+-    _finishDownload: function(statusText , color) { this.updateStatus(statusText, color); this.isProcessing = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
++    _finishDownload: function(statusText , color) { this.updateStatus(statusText, color); this.isDownloading = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
+     calculateRealIndex: function(visualI ndex, total, isReverse) { return isReverse ? (total - visualIndex + 1) : visualIndex; }
+ };
