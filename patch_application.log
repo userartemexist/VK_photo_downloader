@@ -1,51 +1,62 @@
 === PATCH APPLICATION LOG ===
-Date: Sun Mar 29 17:11:29 UTC 2026
+Date: Sun Mar 29 19:03:07 UTC 2026
 Files in src/:
 src/vk_photo_downloader.js
 Patches found: 1
 
 === APPLYING PATCHES ===
 
---- патч1.diff ---
+--- Qwen_573.diff ---
 Target file: vk_photo_downloader.js
 Patch header:
 --- a/vk_photo_downloader.js
 +++ b/vk_photo_downloader.js
-@@ -1,17 +1,18 @@
+@@ -1,17 +1,17 @@
 ⚠ Auto-fix: trying src/vk_photo_downloader.js
-(Stripping trailing CRs from patch; use --binary to disable.)
-can't find file to patch at input line 3
-Perhaps you used the wrong -p or --strip option?
+Hmm...  Looks like a unified diff to me...
 The text leading up to this was:
 --------------------------
 |--- a/vk_photo_downloader.js
 |+++ b/vk_photo_downloader.js
 --------------------------
-No file to patch.  Skipping patch.
-patch: **** malformed patch at line 23: +// @noframes
+patching file vk_photo_downloader.js
+Using Plan A...
+patch: **** malformed patch at line 21: -// @run-at       document-end
 
 ✗ FAILED
 Error details:
- 
-     // DOWNLOAD
-     runDownload: function() {
--        if (this.isProcessing) return; let photos = [];
-+        if (this.isDownloading) return; let photos = [];
-         if (this.mode === 'range') { if (!this.cachedPhotos.length) return; photos = this.cachedPhotos; }
-         else { if (!this.pickedPhotos.length) return; photos = this.pickedPhotos.slice().sort((a, b) => a.numericId - b.numericId); }
--        this.isProcessing = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
-+        this.isDownloading = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
-         const prefix = document.getElementById('sf-prefix').value.trim(); const width = String(photos.length).length;
-         const links = photos.map((p, i) => ({ url: p.url, filename: (prefix ? `${prefix}_VK_` : 'VK_') + String(i + 1).padStart(width, '0') + '.jpg' }));
-         this.startDownloadQueue(links);
-@@ -480,7 +465,7 @@
-         this._finishDownload('✓ Готово!', 'green');
-     },
- 
--    _finishDownload: function(statusText, color) { this.updateStatus(statusText, color); this.isProcessing = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
-+    _finishDownload: function(statusText, color) { this.updateStatus(statusText, color); this.isDownloading = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
-     calculateRealIndex: function(visualIndex, total, isReverse) { return isReverse ? (total - visualIndex + 1) : visualIndex; }
+-.then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isProcessing = false; this.toggleDownloadBtn(true); })
+-.catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isProcessing = false; this.setProgress(0); });
++.then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
++.catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
+ },
+ // PICK MODE
+-togglePicking: function() { if (this.isProcessing) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
++togglePicking: function() { if (this.isScanning || this.isDownloading) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
+ stopPicking: function() { this.isPicking = false; document.body.classList.remove('sf-selecting-mode'); this.updateStatus('Готов', 'green'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = false; if (btnB) btnB.disabled = true; this.toggleDownloadBtn(); },
+ handlePickClick: function(photoId, listParam) {
+@@ -473,8 +464,8 @@
+ // DOWNLOAD
+ runDownload: function() {
+-if (this.isProcessing) return; let photos = [];
++if (this.isDownloading) return; let photos = [];
+ if (this.mode === 'range') { if (!this.cachedPhotos.length) return; photos = this.cachedPhotos; }
+ else { if (!this.pickedPhotos.length) return; photos = this.pickedPhotos.slice().sort((a, b) => a.numericId - b.numericId); }
+-this.isProcessing = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
++this.isDownloading = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
+ const prefix = document.getElementById('sf-prefix').value.trim(); const width = String(photos.length).length;
+ const links = photos.map((p, i) => ({ url: p.url, filename: (prefix ? `${prefix}_VK_` : 'VK_') + String(i + 1).padStart(width, '0') + '.jpg' }));
+ this.startDownloadQueue(links);
+@@ -489,7 +480,7 @@
+ this._finishDownload('✓ Готово!', 'green');
+ },
+-_finishDownload: function(statusText, color) { this.updateStatus(statusText, color); this.isProcessing = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
++_finishDownload: function(statusText, color) { this.updateStatus(statusText, color); this.isDownloading = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
+ calculateRealIndex: function(visualIndex, total, diff) { return isReverse ? (total - visualIndex + 1) : visualIndex; }
  };
+ VKPhotoModule.init();
+
+=== END APPLYING PATCHES ===
 
 === SUMMARY ===
 Total patches: 1
