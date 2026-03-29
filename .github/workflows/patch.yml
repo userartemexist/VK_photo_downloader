@@ -4,13 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       file_name:
-        description: 'File in src/ (empty = auto-select if 1 file)'
+        description: 'If src/ >1 file, enter filename. Leave empty for auto-select'
         required: false
         default: ''
-      selective_mode:
-        description: 'Skip already applied patches?'
-        required: false
-        default: 'true'
 
 jobs:
   patch:
@@ -20,9 +16,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install jq
+      - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y jq
+          sudo apt-get update
+          sudo apt-get install -y jq patch
 
       - name: Initialize log
         run: |
@@ -41,6 +38,9 @@ jobs:
             exit 1
           fi
           
+          echo "Available files in src/:" >> patch_application.log
+          cat src_files.txt >> patch_application.log
+          
           if [ "$count" -eq 1 ] && [ -z "${{ github.event.inputs.file_name }}" ]; then
             file_path=$(cat src_files.txt)
             file_name=$(basename "$file_path")
@@ -49,15 +49,12 @@ jobs:
           elif [ -n "${{ github.event.inputs.file_name }}" ]; then
             if [ ! -f "src/${{ github.event.inputs.file_name }}" ]; then
               echo "ERROR: File not found: src/${{ github.event.inputs.file_name }}" >> patch_application.log
-              echo "Available files:" >> patch_application.log
-              cat src_files.txt >> patch_application.log
               exit 1
             fi
             echo "selected_file=${{ github.event.inputs.file_name }}" >> $GITHUB_OUTPUT
             echo "Selected: ${{ github.event.inputs.file_name }}" >> patch_application.log
           else
             echo "ERROR: Multiple files in src/, please specify file_name:" >> patch_application.log
-            cat src_files.txt >> patch_application.log
             exit 1
           fi
 
@@ -84,7 +81,7 @@ jobs:
           else
             echo "Creating new manifest" >> patch_application.log
             touch applied_list.txt
-            echo "{\"fileId\":\"${{ steps.file_id.outputs.file_id }}\",\"fileName\":\"${{ steps.scan.outputs.selected_file }}\",\"createdAt\":\"$(date -u)\",\"lastUpdated\":\"$(date -u)\",\"appliedPatches\":[],\"totalPatchesApplied\":0,\"currentVersion\":\"1.0.0\"}" > "$manifest_file"
+            echo '{"fileId":"${{ steps.file_id.outputs.file_id }}","fileName":"${{ steps.scan.outputs.selected_file }}","createdAt":"'"$(date -u)"'","lastUpdated":"'"$(date -u)"'","appliedPatches":[],"totalPatchesApplied":0,"currentVersion":"1.0.0"}' > "$manifest_file"
           fi
 
       - name: Find patches
@@ -109,16 +106,14 @@ jobs:
             patch_name=$(basename "$patch_file")
             echo "--- $patch_name ---" >> patch_application.log
             
-            if [ "${{ github.event.inputs.selective_mode }}" = "true" ]; then
-              if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
-                echo "SKIPPED (already applied)" >> patch_application.log
-                skip_count=$((skip_count + 1))
-                continue
-              fi
+            if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
+              echo "SKIPPED (already applied)" >> patch_application.log
+              skip_count=$((skip_count + 1))
+              continue
             fi
             
             fixed_patch="${patch_file}.fixed"
-            sed 's/^\([^+ \-@]\)/ \1/' "$patch_file" > "$fixed_patch"
+            sed 's/^\([^+ @-]\)/ \1/' "$patch_file" > "$fixed_patch"
             sed -i '/^[[:space:]]*$/d' "$fixed_patch"
             
             if patch -p1 -f --ignore-whitespace --no-backup-if-mismatch -d . < "$fixed_patch" >> patch_application.log 2>&1; then
@@ -164,12 +159,25 @@ jobs:
         run: |
           manifest_file="manifests/${{ steps.file_id.outputs.file_id }}.json"
           total_applied=$(wc -l < applied_list.txt 2>/dev/null || echo 0)
+          current_date=$(date -u)
           
-          jq --arg date "$(date -u)" \
+          jq --arg date "$current_date" \
              --argjson total "$total_applied" \
-             --slurpfile applied <(cat applied_list.txt 2>/dev/null | jq -R '.' | jq -s '.') \
-             '.lastUpdated = $date | .totalPatchesApplied = $total | .appliedPatches = ($applied[] | {filename: ., appliedAt: $date})' \
-             "$manifest_file" > "$manifest_file.tmp" && mv "$manifest_file.tmp" "$manifest_file"
+             '.lastUpdated = $date | .totalPatchesApplied = $total' \
+             "$manifest_file" > "$manifest_file.tmp"
+          
+          if [ -s applied_list.txt ]; then
+            cat applied_list.txt | jq -R '.' | jq -s '.' > applied_json.tmp
+            jq --arg date "$current_date" \
+               --slurpfile applied applied_json.tmp \
+               '.appliedPatches = ($applied[] | map({filename: ., appliedAt: $date}))' \
+               "$manifest_file.tmp" > "$manifest_file"
+            rm -f applied_json.tmp
+          else
+            mv "$manifest_file.tmp" "$manifest_file"
+          fi
+          
+          rm -f "$manifest_file.tmp"
 
       - name: Commit changes
         run: |
