@@ -1,0 +1,265 @@
+--- a/vk_photo_down_v5.7.3.js
++++ b/vk_photo_down_v5.7.3.js
+@@ -1,17 +1,17 @@
+ // ==UserScript==
+-// @name         VK Photos Downloader (Unified v5.7.3)
+-// @namespace    http://tampermonkey.net/
+-// @version      5.7.3
+-// @description  Скачивание фото. Жесткая блокировка при загрузке, сохранение состояния, улучшенный курсор.
+-// @author       Final Release
+-// @match        https://vk.com/*
+-// @match        https://*.vk.com/*
+-// @match        https://*.vkontakte.ru/*
+-// @grant        GM_xmlhttpRequest
+-// @grant        GM_download
+-// @connect      vk.com
+-// @connect      *.vk.com
+-// @connect      *.vkontakte.ru
+-// @connect      sun9-*.userapi.com
+-// @connect      userapi.com
+-// @connect      *
+-// @run-at       document-end
+-// @noframes
++// @name         VK Photos Downloader (Unified v5.7.3-Patched)
++// @namespace    http://tampermonkey.net/
++// @version      5.7.4
++// @description  Скачивание фото. Улучшенный UI, разделение состояний, новый курсор.
++// @author       Final Release
++// @match        https://vk.com/*
++// @match        https://*.vk.com/*
++// @match        https://*.vkontakte.ru/*
++// @grant        GM_xmlhttpRequest
++// @grant        GM_download
++// @connect      vk.com
++// @connect      *.vk.com
++// @connect      *.vkontakte.ru
++// @connect      sun9-*.userapi.com
++// @connect      userapi.com
++// @connect      *
++// @run-at       document-end
++// @noframes
+ // ==/UserScript==
+ (function() { 'use strict';
+ // ============================================
+@@ -22,10 +22,8 @@
+ console.log(`%c[VK Photo] v${SCRIPT_VERSION}`, 'color: green; font-weight: bold');
+ const VK_SELECTORS = {
+-VIEWER_CONTENT: '.pv_content',
+-VIEWER_LAYER: '.layer_photo',
+ PHOTO_ROWS: '.photos_album_thumbs, .page_photos',
+ PHOTO_LINK: 'a[href*="photo"]'
+ };
+@@ -48,13 +46,13 @@
+ const style = document.createElement('style');
+ style.id = 'sf-styles';
+-const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><line x1='16' y1='4' x2='16' y2='12' stroke='black' stroke-width='2'/><line x1='16' y1='20' x2='16' y2='28' stroke='black' stroke-width='2'/><line x1='4' y1='16' x2='12' y2='16' stroke='black' stroke-width='2'/><line x1='20' y1='16' x2='28' y2='16' stroke='black' stroke-width='2'/><circle cx='16' cy='16' r='2' fill='black'/></svg>`;
++const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
+ style.textContent = `
+ /* Panel Container */
+ #sf-dl-panel {
+@@ -65,8 +63,8 @@
+ }
+ /* Custom Cursor */
+-body.sf-selecting-mode { cursor: url('${cursorSVG}') 16 16, crosshair; }
+-body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 16 16, crosshair; }
++body.sf-selecting-mode { cursor: url('${cursorSVG}') 24 24, crosshair; }
++body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, crosshair; }
+ /* Header */
+ .sf-header {
+@@ -85,28 +83,32 @@
+ .sf-toggle-container {
+ margin-bottom: 15px; display: flex; align-items: center;
+ justify-content: center; background: #f0f0f0;
+-border-radius: 4px; padding: 5px;
++border-radius: 6px; padding: 4px;
+ }
+-.sf-toggle-label { flex: 1; cursor: pointer; text-align: center; margin: 0 10px; font-size: 14px; font-weight: normal; color: #666; transition: color 0.2s; }
+-
+-/* Active Label Colors */
+-.sf-toggle-label.active-green { font-weight: bold; color: #4CAF50; }
+-.sf-toggle-label.active-blue { font-weight: bold; color: #2a5885; }
+-
+-/* Track Logic */
+-.sf-toggle-track {
+-width: 40px; height: 20px; background: #4CAF50; /* Green for Range */
+-border-radius: 10px; position: relative; cursor: pointer;
+-border: none; transition: background 0.2s;
+-}
+-.sf-toggle-track.active {
+-background: #2a5885; /* Blue for Pick */
++.sf-toggle-label {
++flex: 1; cursor: pointer; text-align: center;
++font-size: 13px; font-weight: normal; color: #555;
++background: transparent; border: 1px solid transparent;
++border-radius: 4px; padding: 6px 10px; margin: 0 2px;
++transition: all 0.2s;
++}
++.sf-toggle-label.active-blue {
++font-weight: bold; color: #2a5885;
++background: #fff; border-color: #2a5885; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
++}
++.sf-toggle-label.active-yellow {
++font-weight: bold; color: #FB8C00;
++background: #fff; border-color: #FB8C00; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+ }
+-.sf-toggle-thumb {
+-position: absolute; top: 2px; left: 2px; /* Default Left (Range) */
+-width: 16px; height: 16px; background: #fff;
+-border-radius: 50%; transition: left 0.2s;
+-}
+-.sf-toggle-track.active .sf-toggle-thumb {
+-left: 22px; /* Move Right (Pick) */
+-}
+ /* Table */
+ .sf-data-table { width: 100%; text-align: center; font-family: 'Arial Narrow', Arial, sans-serif; border-collapse: collapse; margin-bottom: 5px; }
+@@ -173,7 +175,7 @@
+ pickedPhotos: [], pendingRequests: {}, totalPickSize: 0,
+ cachedPhotos: [], totalBytesRange: 0,
+ mode: 'range', selectionMode: null, isPicking: false,
+-isProcessing: false, abortFlag: false, isFetchingMeta: false,
++isScanning: false, isDownloading: false, abortFlag: false, isFetchingMeta: false,
+ uiPanel: null, gmSupported: false,
+ lastAlbumId: null, lastUrl: null, spaWatcher: null,
+ observer: null, observerActive: false, isDrawing: false, debounceTimer: null,
+@@ -185,8 +187,7 @@
+ this.initSpaNavigationWatcher();
+ },
+ isViewerOpen: function() {
+-return !!document.querySelector(VK_SELECTORS.VIEWER_CONTENT) || !!document.querySelector(VK_SELECTORS.VIEWER_LAYER);
++return /^https:\/\/(www\.)?vk\.com\/photo/i.test(window.location.href);
+ },
+ getStorageKey: function() { return `sf_pick_${this.lastAlbumId}`; },
+@@ -232,18 +233,8 @@
+ },
+ syncPanelVisibility: function() {
+-if (!this.uiPanel) return;
+-
+-// Если идет скачивание, панель должна быть видна
+-if (this.isProcessing) return;
+-
+-const viewerOpen = this.isViewerOpen();
+-
+-// Soft Hide: Если просмотрщик открыт, скрываем панель
+-if (viewerOpen && this.uiPanel.style.display !== 'none') {
+-this.uiPanel.style.display = 'none';
+-}
+-// Soft Show: Если просмотрщик закрыт, показываем панель обратно
+-else if (!viewerOpen && this.uiPanel.style.display === 'none' && !this.abortFlag) {
+-this.uiPanel.style.display = 'block';
+-}
++// Панель больше не скрывается.
++// Она всегда висит на месте, чтобы был виден процесс сканирования/скачивания.
++// Блокировка кнопок реализована напрямую в initPanelEvents через isViewerOpen().
+ },
+ drawBadges: function() {
+@@ -300,7 +291,7 @@
+ this.pickedPhotos = []; this.totalPickSize = 0;
+ this.cachedPhotos = []; this.totalBytesRange = 0;
+-this.isPicking = false; this.isProcessing = false;
++this.isPicking = false; this.isScanning = false; this.isDownloading = false;
+ this.selectionMode = null; this.isDrawing = false;
+ this.isFetchingMeta: false;
+ document.body.classList.remove('sf-selecting-mode');
+@@ -317,7 +308,7 @@
+ const panel = document.createElement('div');
+ panel.id = 'sf-dl-panel';
+-panel.innerHTML = `<div id="sf-header" class="sf-header"><span class="sf-header-title">VK Photo Downloader v${SCRIPT_VERSION}</span><button id="sf-close-btn" class="sf-close-btn" aria-label="Закрыть панель">×</button></div><div class="sf-body"><div class="sf-toggle-container"><label id="lbl-range" class="sf-toggle-label active-green">ИНТЕРВАЛ</label><div id="sf-toggle-track" class="sf-toggle-track" role="switch" aria-checked="false" aria-label="Переключить режим" tabindex="0"><div class="sf-toggle-thumb"></div></div><label id="lbl-pick" class="sf-toggle-label">ВЫБОРОЧНО</label></div>
++panel.innerHTML = `<div id="sf-header" class="sf-header"><span class="sf-header-title">VK Photo Downloader v${SCRIPT_VERSION}</span><button id="sf-close-btn" class="sf-close-btn" aria-label="Закрыть панель">×</button></div><div class="sf-body"><div class="sf-toggle-container"><label id="lbl-range" class="sf-toggle-label active-blue" tabindex="0" role="button">ИНТЕРВАЛ</label><label id="lbl-pick" class="sf-toggle-label" tabindex="0" role="button">ВЫБОРОЧНО</label></div>
+ document.body.appendChild(panel);
+ this.uiPanel = panel;
+ this.initPanelEvents();
+@@ -326,25 +317,25 @@
+ initPanelEvents: function() {
+ document.getElementById('sf-close-btn').onclick = () => { this.hidePanel(); };
+ document.getElementById('sf-clear-prefix').onclick = () => { document.getElementById('sf-prefix').value = ''; };
+-// FIX 3.2: Защита кнопок от нажатия при скачивании ИЛИ при открытом просмотрщике
+-document.getElementById('sf-btn-a').onclick = () => { if(this.isProcessing || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('start'); else this.togglePicking(); };
+-document.getElementById('sf-btn-b').onclick = () => { if(this.isProcessing || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('end'); else this.stopPicking(); };
+-document.getElementById('sf-btn-run').onclick = () => { if(this.isProcessing || this.isViewerOpen()) return; this.runDownload(); };
+-const track = document.getElementById('sf-toggle-track');
+-const toggleHandler = () => { if(this.isProcessing || this.isViewerOpen()) return; this.switchMode(this.mode === 'range' ? 'pick' : 'range'); };
+-track.onclick = toggleHandler;
+-track.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHandler(); } };
+-document.getElementById('lbl-range').onclick = () => { if (this.mode !== 'range') this.switchMode('range'); };
+-document.getElementById('lbl-pick').onclick = () => { if (this.mode !== 'pick') this.switchMode('pick'); };
++// Защита кнопок от нажатия при скачивании ИЛИ при открытом просмотрщике
++document.getElementById('sf-btn-a').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('start'); else this.togglePicking(); };
++document.getElementById('sf-btn-b').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('end'); else this.stopPicking(); };
++document.getElementById('sf-btn-run').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; this.runDownload(); };
++const toggleHandler = () => { if(this.isDownloading || this.isViewerOpen()) return; this.switchMode(this.mode === 'range' ? 'pick' : 'range'); };
++const lblRange = document.getElementById('lbl-range');
++const lblPick = document.getElementById('lbl-pick');
++lblRange.onclick = toggleHandler;
++lblRange.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHandler(); } };
++lblPick.onclick = toggleHandler;
++lblPick.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHandler(); } };
+ },
+ updateToggleUI: function(isRange) {
+-const track = document.getElementById('sf-toggle-track');
+ const lblRange = document.getElementById('lbl-range');
+ const lblPick = document.getElementById('lbl-pick');
+ const btnA = document.getElementById('sf-btn-a');
+ const btnB = document.getElementById('sf-btn-b');
+-if (!track || !btnA || !btnB) return;
+-track.classList.remove('active');
++if (!btnA || !btnB) return;
+ lblRange.className = 'sf-toggle-label';
+ lblPick.className = 'sf-toggle-label';
+ if (isRange) {
+-lblRange.classList.add('active-green');
++lblRange.classList.add('active-blue');
+ btnA.textContent = 'Начало'; btnB.textContent = 'Конец';
+ btnA.disabled = false; btnB.disabled = false;
+ } else {
+-track.classList.add('active');
+-lblPick.classList.add('active-blue');
++lblPick.classList.add('active-yellow');
+ btnA.textContent = 'Подбор'; btnB.textContent = 'Готово';
+ btnA.disabled = false; btnB.disabled = false;
+ }
+@@ -393,7 +384,7 @@
+ setMode: function(type) {
+-if (this.isProcessing) { this.resetState(false); }
++if (this.isScanning) { this.resetState(false); }
+ this.abortFlag = false; this.selectionMode = type;
+ document.body.classList.add('sf-selecting-mode');
+ this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
+@@ -423,7 +414,7 @@
+ startAutoCalculation: function() {
+-this.isProcessing = true;
++this.isScanning = true;
+ this.setRunButtonDisabled(true);
+ this.updateStatus('Получение ссылок...', 'blue');
+ this.currentRequestTracker = { xhr: null };
+@@ -432,11 +423,11 @@
+ getPhotosByOffset(this.getListParam(), offset, count, (cur, total, bytes) => { this.totalBytesRange = bytes; this.updateStatus(`Скан: ${cur}/${total}`, 'blue'); this.updateLabels(); this.setProgress(cur / total * 100); }, () => this.abortFlag, (msg, color) => this.updateStatus(msg, color), this.currentRequestTracker, this.sizeRequestTracker)
+-.then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isProcessing = false; this.toggleDownloadBtn(true); })
+-.catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isProcessing = false; this.setProgress(0); });
++.then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
++.catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
+ },
+ // PICK MODE
+-togglePicking: function() { if (this.isProcessing) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
++togglePicking: function() { if (this.isScanning || this.isDownloading) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
+ stopPicking: function() { this.isPicking = false; document.body.classList.remove('sf-selecting-mode'); this.updateStatus('Готов', 'green'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = false; if (btnB) btnB.disabled = true; this.toggleDownloadBtn(); },
+ handlePickClick: function(photoId, listParam) {
+@@ -473,8 +464,8 @@
+ // DOWNLOAD
+ runDownload: function() {
+-if (this.isProcessing) return; let photos = [];
++if (this.isDownloading) return; let photos = [];
+ if (this.mode === 'range') { if (!this.cachedPhotos.length) return; photos = this.cachedPhotos; }
+ else { if (!this.pickedPhotos.length) return; photos = this.pickedPhotos.slice().sort((a, b) => a.numericId - b.numericId); }
+-this.isProcessing = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
++this.isDownloading = true; const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = true; this.setRunButtonDisabled(true);
+ const prefix = document.getElementById('sf-prefix').value.trim(); const width = String(photos.length).length;
+ const links = photos.map((p, i) => ({ url: p.url, filename: (prefix ? `${prefix}_VK_` : 'VK_') + String(i + 1).padStart(width, '0') + '.jpg' }));
+ this.startDownloadQueue(links);
+@@ -489,7 +480,7 @@
+ this._finishDownload('✓ Готово!', 'green');
+ },
+-_finishDownload: function(statusText, color) { this.updateStatus(statusText, color); this.isProcessing = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
++_finishDownload: function(statusText, color) { this.updateStatus(statusText, color); this.isDownloading = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
+ calculateRealIndex: function(visualIndex, total, diff) { return isReverse ? (total - visualIndex + 1) : visualIndex; }
+ };
+ VKPhotoModule.init();
