@@ -21,7 +21,8 @@ jobs:
           fetch-depth: 0
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
 
       - name: Initialize log
         run: |
@@ -96,50 +97,43 @@ jobs:
           echo "Patches found: $total" >> patch_application.log
 
       - name: Apply patches
-    id: apply
-    run: |
-      success_count=0
-      skip_count=0
-      fail_count=0
-      patches_folder="patches/${{ steps.file_id.outputs.file_id }}"
-    
-      while IFS= read -r patch_file; do
-        [ -z "$patch_file" ] && continue
-        patch_name=$(basename "$patch_file")
-        echo "--- $patch_name ---" >> patch_application.log
-      
-      if [ "${{ github.event.inputs.selective_mode }}" = "true" ]; then
-        if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
-          echo "SKIPPED (already applied)" >> patch_application.log
-          skip_count=$((skip_count + 1))
-          continue
-        fi
-      fi
-      
-      # Исправлено: выводим ошибку и в консоль, и в лог
-      if git apply "$patch_file" 2>&1 | tee -a patch_application.log; then
-        echo "SUCCESS" >> patch_application.log
-        echo "$patch_name" >> applied_list.txt
-        success_count=$((success_count + 1))
-      else
-        echo "FAILED" >> patch_application.log
-        fail_count=$((fail_count + 1))
-      fi
-      done < all_patches.txt
-    
-      echo "success_count=$success_count" >> $GITHUB_OUTPUT
-      echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
-      echo "fail_count=$fail_count" >> $GITHUB_OUTPUT
-    
-      # Показываем лог в консоли для отладки
-      echo "=== PATCH APPLICATION LOG ==="
-      cat patch_application.log
-    
-      # Выходим с ошибкой только если все патчи провалились
-      if [ "$fail_count" -gt 0 ] && [ "$success_count" -eq 0 ]; then
-        exit 1
-      fi
-    
+        id: apply
+        run: |
+          success_count=0
+          skip_count=0
+          fail_count=0
+          patches_folder="patches/${{ steps.file_id.outputs.file_id }}"
+          
+          while IFS= read -r patch_file; do
+            [ -z "$patch_file" ] && continue
+            patch_name=$(basename "$patch_file")
+            echo "--- $patch_name ---" >> patch_application.log
+            
+            if [ "${{ github.event.inputs.selective_mode }}" = "true" ]; then
+              if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
+                echo "SKIPPED (already applied)" >> patch_application.log
+                skip_count=$((skip_count + 1))
+                continue
+              fi
+            fi
+            
+            if git apply "$patch_file" 2>> patch_application.log; then
+              echo "SUCCESS" >> patch_application.log
+              echo "$patch_name" >> applied_list.txt
+              success_count=$((success_count + 1))
+            else
+              echo "FAILED" >> patch_application.log
+              fail_count=$((fail_count + 1))
+            fi
+          done < all_patches.txt
+          
+          echo "success_count=$success_count" >> $GITHUB_OUTPUT
+          echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
+          echo "fail_count=$fail_count" >> $GITHUB_OUTPUT
+          
+          echo "=== LOG CONTENTS ==="
+          cat patch_application.log
+
       - name: Generate summary
         run: |
           echo "=== SUMMARY ===" >> patch_application.log
