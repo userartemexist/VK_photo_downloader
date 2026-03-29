@@ -5,13 +5,11 @@
 // @description  Скачивание фото. Жесткая блокировка при загрузке, сохранение состояния, улучшенный курсор.
 // @author       Final Release
 // @match        https://vk.com/*
-// @match        https://vk.com/*
 // @match        https://vkontakte.ru/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_download
 // @updateURL    https://raw.githubusercontent.com/userartemexist/VK_photo_downloader/refs/heads/main/src/vk_photo_downloader.js
 // @downloadURL  https://raw.githubusercontent.com/userartemexist/VK_photo_downloader/refs/heads/main/src/vk_photo_downloader.js
-// @connect      vk.com
 // @connect      vk.com
 // @connect      vkontakte.ru
 // @connect      sun9-.userapi.com
@@ -31,22 +29,22 @@ const VK_SELECTORS = {
     PHOTO_LINK: 'a[href*="photo"]'
 };
 const VK_API = {
-    BATCH_SIZE:             10,
-    REQ_DELAY:              50,
-    SIZE_TIMEOUT:           5000,
-    DOWNLOAD_DELAY:         300,
-    MAX_RETRIES:            4,
-    RETRY_DELAYS:           [100, 400, 1000, 2500],
-    TOTAL_FETCH_TIMEOUT:    8000,
-    DEBOUNCE_DELAY:         100,
-    PROGRESS_FADE_DELAY:    450,
-    SPA_CHECK_INTERVAL:     1000,
+    BATCH_SIZE: 10,
+    REQ_DELAY: 50,
+    SIZE_TIMEOUT: 5000,
+    DOWNLOAD_DELAY: 300,
+    MAX_RETRIES: 4,
+    RETRY_DELAYS: [100, 400, 1000, 2500],
+    TOTAL_FETCH_TIMEOUT: 8000,
+    DEBOUNCE_DELAY: 100,
+    PROGRESS_FADE_DELAY: 450,
+    SPA_CHECK_INTERVAL: 1000,
     FALLBACK_TAB_THRESHOLD: 10
 };
 const UI_CONSTANTS = {
     Z_INDEX_PANEL: 99999,
     Z_INDEX_BADGE: 100,
-    PANEL_WIDTH:   '320px'
+    PANEL_WIDTH: '320px'
 };
 // ============================================
 // CSS СТИЛИ
@@ -55,9 +53,9 @@ const injectStyles = () => {
     if (document.getElementById('sf-styles')) return;
     const style = document.createElement('style');
     style.id = 'sf-styles';
+    // ИСПРАВЛЕНИЕ #1: Курсор - одна сплошная строка без разрывов
     const cursorSVG = `image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
     style.textContent = `
-/* Panel Container */
 #sf-dl-panel {
     position: fixed; top: 80px; left: 50px; width: ${UI_CONSTANTS.PANEL_WIDTH};
     background: #fff; border: 1px solid #ccc; z-index: ${UI_CONSTANTS.Z_INDEX_PANEL};
@@ -65,11 +63,8 @@ const injectStyles = () => {
     font-family: Arial, sans-serif; font-size: 14px;
     display: none; padding: 0; user-select: none;
 }
-/* Custom Cursor */
 body.sf-selecting-mode { cursor: url('${cursorSVG}') 24 24, crosshair; }
 body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, crosshair; }
-
-/* Header */
 .sf-header {
     position: relative; background: #f5f5f5;
     padding: 10px 30px 10px 15px;
@@ -85,15 +80,12 @@ body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, cro
     font-size: 14px; font-weight: bold; cursor: pointer;
     border: none; padding: 0; line-height: 1;
 }
-/* Body */ 
 .sf-body { padding: 15px; }
-/* Toggle Container */
 .sf-toggle-container {
     margin-bottom: 15px; display: flex; align-items: center;
     justify-content: center; background: #f0f0f0;
     border-radius: 6px; padding: 4px;
 }
-/* Tab Buttons Logic */
 .sf-toggle-label {
     flex: 1; cursor: pointer; text-align: center;
     font-size: 13px; font-weight: normal; color: #555;
@@ -110,24 +102,17 @@ body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, cro
     font-weight: bold; color: #FB8C00;
     background: #fff; border-color: #FB8C00; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
-/* Table */
 .sf-data-table { width: 100%; text-align: center; font-family: 'Arial Narrow', Arial, sans-serif; border-collapse: collapse; margin-bottom: 5px; }
 .sf-data-table th { font-size: 11px; font-weight: bold; color: #666; padding: 0 2px; }
 .sf-data-table td { font-size: 18px; font-weight: bold; color: #000; padding: 0 2px; }
-
-/* Buttons */
 .sf-buttons-row { margin: 15px 0; display: flex; justify-content: center; }
 .sf-action-btn { width: 120px; height: 30px; padding: 0 10px; font-size: 13px; box-sizing: border-box; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: none !important; transform: none !important; outline: none !important; background: #e5ebf1 !important; color: #2a5885 !important; border-radius: 4px; }
 .sf-action-btn + .sf-action-btn { margin-left: 10px; }
 .sf-action-btn:active { background: #dce5ed !important; }
 .sf-action-btn:disabled { opacity: 0.5; cursor: default; background: #f0f0f0 !important; }
-
-/* Inputs */
 .sf-prefix-row { margin-bottom: 15px; position: relative; }
 .sf-input-prefix { width: 100%; padding: 6px 25px 6px 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
 .sf-clear-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; background: #ff4444; border-radius: 4px; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; cursor: pointer; border: none; padding: 0; line-height: 1; }
-
-/* Status Block */
 .sf-status-block { position: relative; background: #f0f0f0; border-radius: 4px; height: 28px; display: flex; flex-direction: column; justify-content: center; margin-bottom: 15px; padding: 0 5px; overflow: hidden; }
 .sf-status-progress-bg { position: absolute; top: 0; left: 0; height: 100%; background: #d0d0d0; width: 0%; opacity: 1; transition: width 0.2s ease, opacity 0.4s ease; z-index: 0; }
 .sf-status-progress-bg.sf-progress-hidden { opacity: 0; }
@@ -135,8 +120,6 @@ body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, cro
 .sf-status-text.green { color: #4CAF50; }
 .sf-status-text.red { color: #E53935; }
 .sf-status-text.orange { color: #FB8C00; }
-
-/* Footer */
 .sf-footer-row { display: flex; justify-content: center; }
 .sf-run-btn { 
     font-size: 16px; padding: 10px 30px;
@@ -146,8 +129,6 @@ body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, cro
     box-sizing: border-box;
 }
 .sf-run-btn:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
-
-/* Badges */
 .sf-badge-marker {
     position: absolute; top: 5px; left: 5px;
     width: 24px; height: 24px;
@@ -295,7 +276,6 @@ const getPhotosByOffset = async (albumId, offset, count, onProgress, abortChecke
 // UI И ЛОГИКА
 // ============================================
 const VKPhotoModule = {
-    // State
     startVisual: null, endVisual: null, totalPhotos: null,
     startReal: null, endReal: null,
     startId: null, endId: null,
@@ -398,12 +378,6 @@ const VKPhotoModule = {
         try { this.observer.disconnect(); this.observerActive = false; } catch (e) {}
     },
 
-    syncPanelVisibility: function() {
-        // Панель больше не скрывается.
-        // Она всегда висит на месте, чтобы был виден процесс сканирования/скачивания.
-        // Блокировка кнопок реализована напрямую в initPanelEvents через isViewerOpen().
-    },
-
     drawBadges: function() {
         if (this.isDrawing) return;
         this.isDrawing = true;
@@ -412,26 +386,19 @@ const VKPhotoModule = {
             const links = containers.length
                 ? Array.from(containers).reduce((acc, c) => acc.concat(Array.from(c.querySelectorAll(VK_SELECTORS.PHOTO_LINK))), [])
                 : document.querySelectorAll(VK_SELECTORS.PHOTO_LINK);
-
             links.forEach(link => {
                 if (link.closest('#sf-dl-panel')) return;
                 if (!link.href.match(/photo-?\d+_\d+/)) return;
-
-                const match = (link.getAttribute('onclick') || '').match(/showPhoto\([' "](-?\d+_\d+)[' "]/)
-                           || link.href.match(/photo(-?\d+_\d+)/);
+                const match = (link.getAttribute('onclick') || '').match(/showPhoto\([' "](-?\d+_\d+)[' "]/) || link.href.match(/photo(-?\d+_\d+)/);
                 if (!match || !match[1]) return;
-
                 const photoId = match[1];
                 const cleanId = String(getCleanId(photoId));
                 const isStart = this.startId && String(getCleanId(this.startId)) === cleanId;
                 const isEnd = this.endId && String(getCleanId(this.endId)) === cleanId;
                 const isPicked = this.mode === 'pick' && this.pickedPhotos.some(p => String(getCleanId(p.id)) === cleanId);
                 const isPending = this.mode === 'pick' && !!this.pendingRequests[photoId];
-
-                const needBadge = (this.mode === 'range' && (isStart || isEnd))
-                               || (this.mode === 'pick' && (isPicked || isPending));
+                const needBadge = (this.mode === 'range' && (isStart || isEnd)) || (this.mode === 'pick' && (isPicked || isPending));
                 const existing = link.querySelector('.sf-badge-marker');
-
                 if (needBadge) {
                     if (existing) existing.remove();
                     let symbol = '▶';
@@ -489,7 +456,6 @@ const VKPhotoModule = {
         for (const id in this.pendingRequests) { if (this.pendingRequests[id]) { try { this.pendingRequests[id].abort(); } catch(e) {} } }
         this.pendingRequests = {};
         if (this.debounceTimer) clearTimeout(this.debounceTimer);
-
         this.startReal = null; this.endReal = null;
         this.startVisual = null; this.endVisual = null;
         this.startId = null; this.endId = null; this.totalPhotos = null;
@@ -499,7 +465,6 @@ const VKPhotoModule = {
         this.selectionMode = null; this.isDrawing = false;
         this.isFetchingMeta = false;
         document.body.classList.remove('sf-selecting-mode');
-
         if (!this.uiPanel) return;
         if (clearPrefix) { const input = document.getElementById('sf-prefix'); if (input) input.value = ''; }
         this.updateLabels();
@@ -527,12 +492,9 @@ const VKPhotoModule = {
     initPanelEvents: function() {
         document.getElementById('sf-close-btn').onclick = () => { this.hidePanel(); };
         document.getElementById('sf-clear-prefix').onclick = () => { document.getElementById('sf-prefix').value = ''; };
-
-        // Защита кнопок от нажатия при скачивании ИЛИ при открытом просмотрщике
         document.getElementById('sf-btn-a').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('start'); else this.togglePicking(); };
         document.getElementById('sf-btn-b').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('end'); else this.stopPicking(); };
         document.getElementById('sf-btn-run').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; this.runDownload(); };
-
         const toggleHandler = () => { if(this.isDownloading || this.isViewerOpen()) return; this.switchMode(this.mode === 'range' ? 'pick' : 'range'); };
         const lblRange = document.getElementById('lbl-range');
         const lblPick = document.getElementById('lbl-pick');
@@ -548,10 +510,8 @@ const VKPhotoModule = {
         const btnA = document.getElementById('sf-btn-a');
         const btnB = document.getElementById('sf-btn-b');
         if (!btnA || !btnB) return;
-
         lblRange.className = 'sf-toggle-label';
         lblPick.className = 'sf-toggle-label';
-
         if (isRange) {
             lblRange.classList.add('active-blue');
             btnA.textContent = 'Начало'; btnB.textContent = 'Конец';
@@ -601,15 +561,12 @@ const VKPhotoModule = {
         const startEl = document.getElementById('sf-start-off'); const endEl = document.getElementById('sf-end-off');
         const countEl = document.getElementById('sf-count'); const sizeEl = document.getElementById('sf-size');
         const sizeHeader = document.getElementById('sf-size-header'); if (!startEl || !endEl || !countEl || !sizeEl) return;
-
         startEl.textContent = this.startReal !== null ? `#${this.startReal}` : '#--';
         endEl.textContent = this.endReal !== null ? `#${this.endReal}` : '#--';
-
         let countText = '0';
         if (this.mode === 'range') { if (this.startReal !== null && this.endReal !== null) countText = Math.abs(this.endReal - this.startReal) + 1; }
         else { countText = this.pickedPhotos.length; }
         countEl.textContent = countText;
-
         const totalBytes = this.mode === 'range' ? this.totalBytesRange : this.totalPickSize;
         if (totalBytes > 0) {
             const mb = totalBytes / (1024 * 1024);
@@ -625,6 +582,7 @@ const VKPhotoModule = {
         this.resetState(false);
         if (this.uiPanel) this.uiPanel.style.display = 'none';
         this.stopObserver();
+        // ИСПРАВЛЕНИЕ #3: Утечка памяти - очищаем интервал
         if (this.spaWatcher) { clearInterval(this.spaWatcher); this.spaWatcher = null; }
     },
 
@@ -647,10 +605,8 @@ const VKPhotoModule = {
         document.addEventListener('click', (e) => {
             if (e.target.closest('#sf-dl-panel')) return;
             if (VKPhotoModule.isViewerOpen()) return;
-
             const isRangeMode = VKPhotoModule.mode === 'range' && VKPhotoModule.selectionMode;
             const isPickMode = VKPhotoModule.mode === 'pick' && VKPhotoModule.isPicking;
-
             if (isRangeMode || isPickMode) {
                 const link = e.target.closest('a'); let isPhoto = false;
                 if (link && link.href.match(/photo-?\d+_\d+/)) { const match = (link.getAttribute('onclick') || '').match(/showPhoto\([' "](-?\d+_\d+)[' "]/) || link.href.match(/photo(-?\d+_\d+)/); if (match && match[1]) isPhoto = true; }
@@ -694,10 +650,13 @@ const VKPhotoModule = {
         if (this.startReal !== null && this.endReal !== null) { this.startAutoCalculation(); }
     },
 
+    // ИСПРАВЛЕНИЕ #2: Логика сканирования - не сбрасывать границы при переключении
     setMode: function(type) {
+        // Если уже сканируем или выбираем - сбрасываем состояние
         if (this.isScanning || this.selectionMode) { this.resetState(false); }
-        this.abortFlag = false; this.selectionMode = type;
-        // При выборе второй границы не сбрасываем первую
+        this.abortFlag = false;
+        this.selectionMode = type;
+        // При выборе второй границы первая сохраняется
         if (type === 'start' && this.endId !== null) {
             // Конец уже выбран, начало меняем - конец сохраняем
         } else if (type === 'end' && this.startId !== null) {
@@ -706,12 +665,15 @@ const VKPhotoModule = {
         document.body.classList.add('sf-selecting-mode');
         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
-        if (type === 'start' && btnA) btnA.classList.add('active'); if (type === 'end' && btnB) btnB.classList.add('active');
+        if (type === 'start' && btnA) btnA.classList.add('active');
+        if (type === 'end' && btnB) btnB.classList.add('active');
     },
 
     handlePhotoClick: function(photoId, listParam) {
         if (this.mode === 'range' && this.selectionMode) {
-            if (this.isFetchingMeta) return; this.updateStatus('Анализ...', 'blue'); this.isFetchingMeta = true;
+            if (this.isFetchingMeta) return;
+            this.updateStatus('Анализ...', 'blue');
+            this.isFetchingMeta = true;
             const visualIndex = this._getVisualIndexFromDOM(photoId);
             if (visualIndex === null) { this.updateStatus('Ошибка: фото не в DOM', 'red'); this.isFetchingMeta = false; return; }
             const isReverse = window.location.href.includes('rev=1');
@@ -732,7 +694,6 @@ const VKPhotoModule = {
         .catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
     },
 
-    // PICK MODE
     togglePicking: function() { if (this.isScanning || this.isDownloading) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
     stopPicking: function() { this.isPicking = false; document.body.classList.remove('sf-selecting-mode'); this.updateStatus('Готов', 'green'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = false; if (btnB) btnB.disabled = true; this.toggleDownloadBtn(); },
 
@@ -746,7 +707,6 @@ const VKPhotoModule = {
         const formData = new FormData(); formData.append('act', 'show'); formData.append('al', '1'); formData.append('photo', photoId); formData.append('list', listParam); formData.append('offset', '0'); xhr.send(formData);
     },
 
-    // DOWNLOAD
     runDownload: function() {
         if (this.isDownloading) return; let photos = [];
         if (this.mode === 'range') { if (!this.cachedPhotos.length) return; photos = this.cachedPhotos; }
