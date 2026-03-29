@@ -14,7 +14,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq --indend2 patch
+          sudo apt-get install -y jq --indent2 patch
 
       - name: Initialize log
         run: |
@@ -153,13 +153,13 @@ jobs:
               total_applied=$(wc -l < "$applied_list")
               current_date=$(date -u)
               
-              jq --indend2 --arg date "$current_date" \
+              jq --indent2 --arg date "$current_date" \
                  --argjson total "$total_applied" \
                  '.lastUpdated = $date | .totalPatchesApplied = $total' \
                  "$manifest_file" > "$manifest_file.tmp"
               
-              cat "$applied_list" | jq --indend2 -R '.' | jq --indend2 -s '.' > applied_json.tmp
-              jq --indend2 --arg date "$current_date" \
+              cat "$applied_list" | jq --indent2 -R '.' | jq --indent2 -s '.' > applied_json.tmp
+              jq --indent2 --arg date "$current_date" \
                  --slurpfile applied applied_json.tmp \
                  '.appliedPatches = ($applied[] | map({filename: ., appliedAt: $date}))' \
                  "$manifest_file.tmp" > "$manifest_file"
