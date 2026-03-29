@@ -117,7 +117,11 @@ jobs:
               fi
             fi
             
-            if git apply "$patch_file" 2>> patch_application.log; then
+            fixed_patch="${patch_file}.fixed"
+            sed 's/^\([^+ \-@]\)/ \1/' "$patch_file" > "$fixed_patch"
+            sed -i '/^[[:space:]]*$/d' "$fixed_patch"
+            
+            if patch -p1 -f --ignore-whitespace --no-backup-if-mismatch -d . < "$fixed_patch" >> patch_application.log 2>&1; then
               echo "SUCCESS" >> patch_application.log
               echo "$patch_name" >> applied_list.txt
               success_count=$((success_count + 1))
@@ -125,6 +129,9 @@ jobs:
               echo "FAILED" >> patch_application.log
               fail_count=$((fail_count + 1))
             fi
+            
+            rm -f "$fixed_patch"
+            
           done < all_patches.txt
           
           echo "success_count=$success_count" >> $GITHUB_OUTPUT
@@ -133,6 +140,10 @@ jobs:
           
           echo "=== LOG CONTENTS ==="
           cat patch_application.log
+          
+          if [ "$fail_count" -gt 0 ] && [ "$success_count" -eq 0 ]; then
+            exit 1
+          fi
 
       - name: Generate summary
         run: |
