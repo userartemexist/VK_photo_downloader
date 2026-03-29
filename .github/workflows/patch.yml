@@ -165,7 +165,7 @@ jobs:
           git push
 
       - name: Upload log
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: patch-application-log
           path: patch_application.log
