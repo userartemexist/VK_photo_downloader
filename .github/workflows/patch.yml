@@ -31,6 +31,10 @@ jobs:
           echo "Files in src/:" >> patch_application.log
           cat src_files.txt >> patch_application.log
           cat patch_application.log
+          
+          if [ "$count" -eq 0 ]; then
+            echo "ERROR: No source files found in src/" >> patch_application.log
+          fi
 
       - name: Scan patches
         id: patches
@@ -61,6 +65,8 @@ jobs:
             echo "" >> patch_application.log
             echo "--- $patch_name ---" >> patch_application.log
             echo "Target file: $target_file" >> patch_application.log
+            echo "Patch header:" >> patch_application.log
+            head -3 "$patch_file" >> patch_application.log
             
             if [ ! -f "$target_file" ] && [ -f "src/$target_file" ]; then
               echo "⚠ Auto-fix: trying src/$target_file" >> patch_application.log
@@ -78,7 +84,6 @@ jobs:
             
             manifest_file="manifests/${file_id}.json"
             mkdir -p manifests
-            
             if [ -f "$manifest_file" ]; then
               jq -r '.appliedPatches[].filename // empty' "$manifest_file" > applied_list.txt 2>/dev/null || touch applied_list.txt
             else
@@ -98,6 +103,8 @@ jobs:
               success_count=$((success_count + 1))
             else
               echo "✗ FAILED" >> patch_application.log
+              echo "Error details:" >> patch_application.log
+              tail -20 "$patch_file" >> patch_application.log
               fail_count=$((fail_count + 1))
             fi
             
@@ -129,6 +136,7 @@ jobs:
           echo "Skipped: ${{ steps.apply.outputs.skip_count }} (manifest) + ${{ steps.apply.outputs.not_found_count }} (not found)"
           echo "Failed:  ${{ steps.apply.outputs.fail_count }}"
           echo "=========================================="
+          echo ""
           
           if [ "${{ steps.apply.outputs.fail_count }}" -gt 0 ]; then
             echo "❌ Some patches failed. Check log for details."
