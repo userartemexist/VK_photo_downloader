@@ -652,16 +652,12 @@ const VKPhotoModule = {
 
     // ИСПРАВЛЕНИЕ #2: Логика сканирования - не сбрасывать границы при переключении
     setMode: function(type) {
-        // Если уже сканируем или выбираем - сбрасываем состояние
         if (this.isScanning || this.selectionMode) { this.resetState(false); }
         this.abortFlag = false;
         this.selectionMode = type;
         // При выборе второй границы первая сохраняется
-        if (type === 'start' && this.endId !== null) {
-            // Конец уже выбран, начало меняем - конец сохраняем
-        } else if (type === 'end' && this.startId !== null) {
-            // Начало уже выбрано, конец меняем - начало сохраняем
-        }
+        if (type === 'start' && this.endId !== null) { }
+        else if (type === 'end' && this.startId !== null) { }
         document.body.classList.add('sf-selecting-mode');
         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
