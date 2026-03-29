@@ -100,17 +100,15 @@ jobs:
             echo "📋 Creating new manifest" >> patch_application.log
             touch applied_list.txt
             # Создаём шаблон манифеста
-            cat > "$manifest_file" << EOF
-{
+echo '{
   "fileId": "${{ steps.file_id.outputs.file_id }}",
   "fileName": "${{ steps.scan.outputs.selected_file }}",
-  "createdAt": "$(date -u)",
-  "lastUpdated": "$(date -u)",
+  "createdAt": "'$(date -u)'",
+  "lastUpdated": "'$(date -u)'",
   "appliedPatches": [],
   "totalPatchesApplied": 0,
   "currentVersion": "1.0.0"
-}
-EOF
+}' > "$manifest_file"
           fi
       
       - name: Find all patches for this file
