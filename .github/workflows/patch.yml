@@ -14,13 +14,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq --indent2 patch
+          sudo apt-get install -y jq patch
 
       - name: Initialize log
         run: |
           echo "=== PATCH APPLICATION LOG ===" > patch_application.log
           echo "Date: $(date -u)" >> patch_application.log
-          echo "Log file created: $(ls -la patch_application.log)"
+          cat patch_application.log
 
       - name: Scan src/ for files
         id: scan
@@ -28,13 +28,9 @@ jobs:
           find src/ -type f 2>/dev/null | sort > src_files.txt || touch src_files.txt
           count=$(wc -l < src_files.txt)
           echo "file_count=$count" >> $GITHUB_OUTPUT
-          
           echo "Files in src/:" >> patch_application.log
           cat src_files.txt >> patch_application.log
-          
-          if [ "$count" -eq 0 ]; then
-            echo "ERROR: No source files found in src/" >> patch_application.log
-          fi
+          cat patch_application.log
 
       - name: Scan patches
         id: patches
@@ -43,6 +39,7 @@ jobs:
           total=$(wc -l < all_patches.txt)
           echo "total_patches=$total" >> $GITHUB_OUTPUT
           echo "Patches found: $total" >> patch_application.log
+          cat patch_application.log
 
       - name: Apply patches
         id: apply
@@ -87,7 +84,7 @@ jobs:
               jq -r '.appliedPatches[].filename' "$manifest_file" > applied_list.txt 2>/dev/null || touch applied_list.txt
             else
               touch applied_list.txt
-              echo "{\"fileId\":\"$file_id\",\"fileName\":\"$target_file\",\"createdAt\":\"$(date -u)\",\"lastUpdated\":\"$(date -u)\",\"appliedPatches\":[],\"totalPatchesApplied\":0}" | jq --indent2 '.' > "$manifest_file"
+              echo "{\"fileId\":\"$file_id\",\"fileName\":\"$target_file\",\"createdAt\":\"$(date -u)\",\"lastUpdated\":\"$(date -u)\",\"appliedPatches\":[],\"totalPatchesApplied\":0}" | jq --indent 2 '.' > "$manifest_file"
             fi
             
             if grep -qF "$patch_name" applied_list.txt 2>/dev/null; then
@@ -96,14 +93,14 @@ jobs:
               continue
             fi
             
-            if patch -p1 -f --ignore-whitespace < "$patch_file" >> patch_application.log 2>&1; then
+            if patch -d src -p1 -f --ignore-whitespace --verbose < "$patch_file" >> patch_application.log 2>&1; then
               echo "✓ SUCCESS" >> patch_application.log
               echo "$patch_name" >> applied_list.txt
               success_count=$((success_count + 1))
             else
               echo "✗ FAILED" >> patch_application.log
               echo "Error details:" >> patch_application.log
-              tail -20 "$patch_file" >> patch_application.log
+              tail -30 "$patch_file" >> patch_application.log
               fail_count=$((fail_count + 1))
             fi
             
@@ -113,6 +110,10 @@ jobs:
           echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
           echo "fail_count=$fail_count" >> $GITHUB_OUTPUT
           echo "not_found_count=$not_found_count" >> $GITHUB_OUTPUT
+          
+          echo "" >> patch_application.log
+          echo "=== END APPLYING PATCHES ===" >> patch_application.log
+          cat patch_application.log
 
       - name: Generate summary
         run: |
@@ -130,13 +131,15 @@ jobs:
           echo "=========================================="
           echo "Total:   ${{ steps.patches.outputs.total_patches }}"
           echo "Applied: ${{ steps.apply.outputs.success_count }}"
-          echo "Skipped: ${{ steps.apply.outputs.skip_count }} (manifest) + ${{ steps.apply.outputs.not_found_count }} (not found)"
+          echo "Skipped: ${{ steps.apply.outputs.skip_count }} + ${{ steps.apply.outputs.not_found_count }}"
           echo "Failed:  ${{ steps.apply.outputs.fail_count }}"
           echo "=========================================="
           echo ""
           
+          cat patch_application.log
+          
           if [ "${{ steps.apply.outputs.fail_count }}" -gt 0 ]; then
-            echo "❌ Some patches failed. Check log for details."
+            echo "❌ Some patches failed"
           else
             echo "✅ All patches processed successfully!"
           fi
@@ -145,28 +148,21 @@ jobs:
         run: |
           for manifest_file in manifests/*.json; do
             [ -f "$manifest_file" ] || continue
-            
             file_id=$(basename "$manifest_file" .json)
             applied_list="manifests/${file_id}_applied.txt"
-            
             if [ -f "$applied_list" ] && [ -s "$applied_list" ]; then
               total_applied=$(wc -l < "$applied_list")
               current_date=$(date -u)
-              
-              jq --indent2 --arg date "$current_date" \
-                 --argjson total "$total_applied" \
+              jq --indent 2 --arg date "$current_date" --argjson total "$total_applied" \
                  '.lastUpdated = $date | .totalPatchesApplied = $total' \
                  "$manifest_file" > "$manifest_file.tmp"
-              
-              cat "$applied_list" | jq --indent2 -R '.' | jq --indent2 -s '.' > applied_json.tmp
-              jq --indent2 --arg date "$current_date" \
+              cat "$applied_list" | jq -R '.' | jq -s '.' > applied_json.tmp
+              jq --indent 2 --arg date "$current_date" \
                  --slurpfile applied applied_json.tmp \
                  '.appliedPatches = ($applied[] | map({filename: ., appliedAt: $date}))' \
                  "$manifest_file.tmp" > "$manifest_file"
-              
               rm -f "$manifest_file.tmp" applied_json.tmp
             fi
-            
             rm -f "$applied_list"
           done
 
@@ -181,10 +177,9 @@ jobs:
       - name: Upload log
         uses: actions/upload-artifact@v4
         with:
-          name: patch-application-log
+          name: patch-log-run-${{ github.run_id }}
           path: patch_application.log
           retention-days: 30
-          if-no-files-found: warn
 
       - name: Fail if patches failed
         if: steps.apply.outputs.fail_count > 0
