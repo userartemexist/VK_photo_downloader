@@ -5,16 +5,16 @@
 // @description  Скачивание фото. Жесткая блокировка при загрузке, сохранение состояния, улучшенный курсор.
 // @author       Final Release
 // @match        https://vk.com/*
-// @match        https://*.vk.com/*
-// @match        https://*.vkontakte.ru/*
+// @match        https://vk.com/*
+// @match        https://vkontakte.ru/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_download
 // @updateURL    https://raw.githubusercontent.com/userartemexist/VK_photo_downloader/refs/heads/main/src/vk_photo_downloader.js
 // @downloadURL  https://raw.githubusercontent.com/userartemexist/VK_photo_downloader/refs/heads/main/src/vk_photo_downloader.js
 // @connect      vk.com
-// @connect      *.vk.com
-// @connect      *.vkontakte.ru
-// @connect      sun9-*.userapi.com
+// @connect      vk.com
+// @connect      vkontakte.ru
+// @connect      sun9-.userapi.com
 // @connect      userapi.com
 // @connect      *
 // @run-at       document-end
@@ -24,7 +24,7 @@
 // ============================================
 // КОНСТАНТЫ И СЕЛЕКТОРЫ
 // ============================================
-const SCRIPT_VERSION = '5.7.3';
+const SCRIPT_VERSION = '5.7.31';
 console.log(`%c[VK Photo] v${SCRIPT_VERSION}`, 'color: green; font-weight: bold');
 const VK_SELECTORS = {
     PHOTO_ROWS: '.photos_album_thumbs, .page_photos',
@@ -57,135 +57,124 @@ const injectStyles = () => {
     style.id = 'sf-styles';
     const cursorSVG = `image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
     style.textContent = `
-    /* Panel Container */
-    #sf-dl-panel {
-        position: fixed; top: 80px; left: 50px; width: ${UI_CONSTANTS.PANEL_WIDTH};
-        background: #fff; border: 1px solid #ccc; z-index: ${UI_CONSTANTS.Z_INDEX_PANEL};
-        box-shadow: 0 0 15px rgba(0,0,0,0.3); border-radius: 8px;
-        font-family: Arial, sans-serif; font-size: 14px;
-        display: none; padding: 0; user-select: none;
-    }
-    
-    /* Custom Cursor */
-    body.sf-selecting-mode { cursor: url('${cursorSVG}') 24 24, crosshair; }
-    body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, crosshair; }
-    
-    /* Header */
-    .sf-header {
-        position: relative; background: #f5f5f5;
-        padding: 10px 30px 10px 15px;
-        border-bottom: 1px solid #ddd;
-        border-radius: 8px 8px 0 0; cursor: move;
-    }
-    .sf-header-title { font-weight: bold; font-size: 16px; color: #2a5885; }
-    .sf-close-btn {
-        position: absolute; top: 10px; right: 10px;
-        width: 22px; height: 22px; background: #ff4444;
-        border-radius: 4px; color: #fff;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 14px; font-weight: bold; cursor: pointer;
-        border: none; padding: 0; line-height: 1;
-    }
-    /* Body */ 
-    .sf-body { padding: 15px; }
-    /* Toggle Container */
-    .sf-toggle-container {
-        margin-bottom: 15px; display: flex; align-items: center;
-        justify-content: center; background: #f0f0f0;
-        border-radius: 6px; padding: 4px;
-    }
-    /* Tab Buttons Logic */
-    .sf-toggle-label {
-        flex: 1; cursor: pointer; text-align: center;
-        font-size: 13px; font-weight: normal; color: #555;
-        background: transparent; border: 1px solid transparent;
-        border-radius: 4px; padding: 6px 10px; margin: 0 2px;
-        transition: all 0.2s;
-    }
-    .sf-toggle-label.active-blue {
-        font-weight: bold; color: #2a5885;
-        background: #fff; border-color: #2a5885; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .sf-toggle-label.active-yellow {
-        font-weight: bold; color: #FB8C00;
-        background: #fff; border-color: #FB8C00; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    /* Table */
-    .sf-data-table { width: 100%; text-align: center; font-family: 'Arial Narrow', Arial, sans-serif; border-collapse: collapse; margin-bottom: 5px; }
-    .sf-data-table th { font-size: 11px; font-weight: bold; color: #666; padding: 0 2px; }
-    .sf-data-table td { font-size: 18px; font-weight: bold; color: #000; padding: 0 2px; }
-    
-    /* Buttons */
-    .sf-buttons-row { margin: 15px 0; display: flex; justify-content: center; }
-    .sf-action-btn { width: 120px; height: 30px; padding: 0 10px; font-size: 13px; box-sizing: border-box; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: none !important; transform: none !important; outline: none !important; background: #e5ebf1 !important; color: #2a5885 !important; border-radius: 4px; }
-    .sf-action-btn + .sf-action-btn { margin-left: 10px; }
-    .sf-action-btn:active { background: #dce5ed !important; }
-    .sf-action-btn:disabled { opacity: 0.5; cursor: default; background: #f0f0f0 !important; }
-    
-    /* Inputs */
-    .sf-prefix-row { margin-bottom: 15px; position: relative; }
-    .sf-input-prefix { width: 100%; padding: 6px 25px 6px 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
-    .sf-clear-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; background: #ff4444; border-radius: 4px; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; cursor: pointer; border: none; padding: 0; line-height: 1; }
-    
-    /* Status Block */
-    .sf-status-block { position: relative; background: #f0f0f0; border-radius: 4px; height: 28px; display: flex; flex-direction: column; justify-content: center; margin-bottom: 15px; padding: 0 5px; overflow: hidden; }
-    .sf-status-progress-bg { position: absolute; top: 0; left: 0; height: 100%; background: #d0d0d0; width: 0%; opacity: 1; transition: width 0.2s ease, opacity 0.4s ease; z-index: 0; }
-    .sf-status-progress-bg.sf-progress-hidden { opacity: 0; }
-    .sf-status-text { position: relative; z-index: 1; text-align: center; font-size: 16px; font-weight: bold; color: #2a5885; }
-    .sf-status-text.green  { color: #4CAF50; }
-    .sf-status-text.red    { color: #E53935; }
-    .sf-status-text.orange { color: #FB8C00; }
-    
-    /* Footer */
-    .sf-footer-row { display: flex; justify-content: center; }
-    .sf-run-btn { 
-        font-size: 16px; padding: 10px 30px;
-        font-weight: bold; cursor: pointer; height: auto;
-        background: #5181B8 !important; color: #fff !important;
-        border-radius: 4px; border: none;
-        box-sizing: border-box;
-    }
-    .sf-run-btn:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
-    
-    /* Badges */
-    .sf-badge-marker {
-        position: absolute; top: 5px; left: 5px;
-        width: 24px; height: 24px;
-        background: rgba(76, 175, 80, 0.8);
-        border-radius: 50%; color: #fff;
-        font-size: 16px; font-weight: bold;
-        display: flex; align-items: center;
-        justify-content: center; z-index: ${UI_CONSTANTS.Z_INDEX_BADGE};
-        pointer-events: none;
-    }
+/* Panel Container */
+#sf-dl-panel {
+    position: fixed; top: 80px; left: 50px; width: ${UI_CONSTANTS.PANEL_WIDTH};
+    background: #fff; border: 1px solid #ccc; z-index: ${UI_CONSTANTS.Z_INDEX_PANEL};
+    box-shadow: 0 0 15px rgba(0,0,0,0.3); border-radius: 8px;
+    font-family: Arial, sans-serif; font-size: 14px;
+    display: none; padding: 0; user-select: none;
+}
+/* Custom Cursor */
+body.sf-selecting-mode { cursor: url('${cursorSVG}') 24 24, crosshair; }
+body.sf-selecting-mode a[href*="photo"] { cursor: url('${cursorSVG}') 24 24, crosshair; }
+
+/* Header */
+.sf-header {
+    position: relative; background: #f5f5f5;
+    padding: 10px 30px 10px 15px;
+    border-bottom: 1px solid #ddd;
+    border-radius: 8px 8px 0 0; cursor: move;
+}
+.sf-header-title { font-weight: bold; font-size: 16px; color: #2a5885; }
+.sf-close-btn {
+    position: absolute; top: 10px; right: 10px;
+    width: 22px; height: 22px; background: #ff4444;
+    border-radius: 4px; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+    border: none; padding: 0; line-height: 1;
+}
+/* Body */ 
+.sf-body { padding: 15px; }
+/* Toggle Container */
+.sf-toggle-container {
+    margin-bottom: 15px; display: flex; align-items: center;
+    justify-content: center; background: #f0f0f0;
+    border-radius: 6px; padding: 4px;
+}
+/* Tab Buttons Logic */
+.sf-toggle-label {
+    flex: 1; cursor: pointer; text-align: center;
+    font-size: 13px; font-weight: normal; color: #555;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 4px; padding: 6px 10px; margin: 0 2px;
+    transition: all 0.2s;
+}
+.sf-toggle-label.active-blue {
+    font-weight: bold; color: #2a5885;
+    background: #fff; border-color: #2a5885; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.sf-status-text.blue { color: #2a5885; }
+.sf-toggle-label.active-yellow {
+    font-weight: bold; color: #FB8C00;
+    background: #fff; border-color: #FB8C00; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+/* Table */
+.sf-data-table { width: 100%; text-align: center; font-family: 'Arial Narrow', Arial, sans-serif; border-collapse: collapse; margin-bottom: 5px; }
+.sf-data-table th { font-size: 11px; font-weight: bold; color: #666; padding: 0 2px; }
+.sf-data-table td { font-size: 18px; font-weight: bold; color: #000; padding: 0 2px; }
+
+/* Buttons */
+.sf-buttons-row { margin: 15px 0; display: flex; justify-content: center; }
+.sf-action-btn { width: 120px; height: 30px; padding: 0 10px; font-size: 13px; box-sizing: border-box; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: none !important; transform: none !important; outline: none !important; background: #e5ebf1 !important; color: #2a5885 !important; border-radius: 4px; }
+.sf-action-btn + .sf-action-btn { margin-left: 10px; }
+.sf-action-btn:active { background: #dce5ed !important; }
+.sf-action-btn:disabled { opacity: 0.5; cursor: default; background: #f0f0f0 !important; }
+
+/* Inputs */
+.sf-prefix-row { margin-bottom: 15px; position: relative; }
+.sf-input-prefix { width: 100%; padding: 6px 25px 6px 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
+.sf-clear-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; background: #ff4444; border-radius: 4px; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; cursor: pointer; border: none; padding: 0; line-height: 1; }
+
+/* Status Block */
+.sf-status-block { position: relative; background: #f0f0f0; border-radius: 4px; height: 28px; display: flex; flex-direction: column; justify-content: center; margin-bottom: 15px; padding: 0 5px; overflow: hidden; }
+.sf-status-progress-bg { position: absolute; top: 0; left: 0; height: 100%; background: #d0d0d0; width: 0%; opacity: 1; transition: width 0.2s ease, opacity 0.4s ease; z-index: 0; }
+.sf-status-progress-bg.sf-progress-hidden { opacity: 0; }
+.sf-status-text { position: relative; z-index: 1; text-align: center; font-size: 16px; font-weight: bold; color: #2a5885; }
+.sf-status-text.green { color: #4CAF50; }
+.sf-status-text.red { color: #E53935; }
+.sf-status-text.orange { color: #FB8C00; }
+
+/* Footer */
+.sf-footer-row { display: flex; justify-content: center; }
+.sf-run-btn { 
+    font-size: 16px; padding: 10px 30px;
+    font-weight: bold; cursor: pointer; height: auto;
+    background: #5181B8 !important; color: #fff !important;
+    border-radius: 4px; border: none;
+    box-sizing: border-box;
+}
+.sf-run-btn:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
+
+/* Badges */
+.sf-badge-marker {
+    position: absolute; top: 5px; left: 5px;
+    width: 24px; height: 24px;
+    background: rgba(76, 175, 80, 0.8);
+    border-radius: 50%; color: #fff;
+    font-size: 16px; font-weight: bold;
+    display: flex; align-items: center;
+    justify-content: center; z-index: ${UI_CONSTANTS.Z_INDEX_BADGE};
+    pointer-events: none;
+}
 `;
     document.head.appendChild(style);
 };
 // ============================================
 // УТИЛИТЫ
 // ============================================
-const getCleanId = (id) => {
-    if (!id) return null;
-    const str = String(id);
-    return str.includes('_') ? str.split('_')[1] : str;
-};
+const getCleanId = (id) => { if (!id) return null; const str = String(id); return str.includes('_') ? str.split('_')[1] : str; };
 const getNumericId = (id) => parseInt(getCleanId(id));
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const parseVKResponse = (text) => {
-    let s = text.trim();
-    if (s.startsWith('<!--')) s = s.substring(4);
-    if (s.endsWith('-->'))   s = s.slice(0, -3);
-    return JSON.parse(s);
-};
+const parseVKResponse = (text) => { let s = text.trim(); if (s.startsWith('<!--')) s = s.substring(4); if (s.endsWith('-->')) s = s.slice(0, -3); return JSON.parse(s); };
 // ============================================
 // ПАРСИНГ И СЕТЬ
 // ============================================
 const getMaxPhotoSize = (photo) => {
     let url = null;
     if (photo.sizes && Array.isArray(photo.sizes)) {
-        const best = photo.sizes.find(s => s.type === 'w')
-            || photo.sizes.find(s => s.type === 'z')
-            || photo.sizes.find(s => s.type === 'y');
+        const best = photo.sizes.find(s => s.type === 'w') || photo.sizes.find(s => s.type === 'z') || photo.sizes.find(s => s.type === 'y');
         if (best) url = best.url;
     }
     if (!url) {
@@ -201,13 +190,16 @@ const getSingleFileSize = (url, abortSignal) => {
     return new Promise(resolve => {
         if (typeof GM_xmlhttpRequest !== 'undefined') {
             const req = GM_xmlhttpRequest({
-                method: 'GET', url, headers: { 'Range': 'bytes=0-0' },
+                method: 'GET', url,
+                headers: { 'Range': 'bytes=0-0' },
                 timeout: VK_API.SIZE_TIMEOUT,
                 onload: (r) => {
                     const m = r.responseHeaders.match(/Content-Range:\s*bytes\s+\d+-\d+\/(\d+)/i);
                     resolve(m && m[1] ? parseInt(m[1]) : 0);
                 },
-                onerror: () => resolve(0), ontimeout: () => resolve(0), onabort: () => resolve(0)
+                onerror: () => resolve(0),
+                ontimeout: () => resolve(0),
+                onabort: () => resolve(0)
             });
             if (abortSignal) abortSignal.onabort = () => { try { req.abort(); } catch(e) {} };
         } else { resolve(0); }
@@ -265,7 +257,9 @@ const getPhotosByOffset = async (albumId, offset, count, onProgress, abortChecke
         if (abortChecker()) throw new Error('Aborted');
         const limit = Math.min(remainingCount, VK_API.BATCH_SIZE);
         const data = { act: 'show', al: 1, list: listParam, offset: currentOffset, count: limit };
-        const response = await fetchWithRetry('/al_photos.php', data, abortChecker, (attempt, max) => { if (onRetryStatus) onRetryStatus(`Ошибка сети. Повтор ${attempt}/${max}...`, 'orange'); }, tracker);
+        const response = await fetchWithRetry('/al_photos.php', data, abortChecker, (attempt, max) => {
+            if (onRetryStatus) onRetryStatus(`Ошибка сети. Повтор ${attempt}/${max}...`, 'orange');
+        }, tracker);
         try {
             const json = parseVKResponse(response.body);
             if (json.payload && json.payload[1] && json.payload[1][3]) {
@@ -288,7 +282,11 @@ const getPhotosByOffset = async (albumId, offset, count, onProgress, abortChecke
                 }
                 currentOffset += pagePhotos.length;
             } else { break; }
-        } catch (e) { if (e.message === 'Aborted') throw e; console.error(e); break; }
+        } catch (e) {
+            if (e.message === 'Aborted') throw e;
+            console.error(e);
+            break;
+        }
         await delay(VK_API.REQ_DELAY);
     }
     return { photos: allPhotos, totalBytes };
@@ -309,7 +307,7 @@ const VKPhotoModule = {
     lastAlbumId: null, lastUrl: null, spaWatcher: null,
     observer: null, observerActive: false, isDrawing: false, debounceTimer: null,
     currentRequestTracker: null, sizeRequestTracker: null,
-    
+
     init: function() {
         injectStyles();
         this.gmSupported = (typeof GM_download !== 'undefined');
@@ -320,19 +318,19 @@ const VKPhotoModule = {
         this.initClickListener();
         this.initSpaNavigationWatcher();
     },
-    
+
     isViewerOpen: function() {
         return /^https:\/\/(www\.)?vk\.com\/photo/i.test(window.location.href);
     },
-    
+
     getStorageKey: function() { return `sf_pick_${this.lastAlbumId}`; },
-    
+
     savePickedState: function() {
         if (this.mode === 'pick' && this.lastAlbumId) {
             try { localStorage.setItem(this.getStorageKey(), JSON.stringify(this.pickedPhotos)); } catch(e) {}
         }
     },
-    
+
     loadPickedState: function() {
         if (this.mode === 'pick' && this.lastAlbumId) {
             try {
@@ -347,18 +345,18 @@ const VKPhotoModule = {
             } catch(e) {}
         }
     },
-    
+
     clearStorage: function() {
         if (this.lastAlbumId) {
             try { localStorage.removeItem(`sf_pick_${this.lastAlbumId}`); } catch(e) {}
         }
     },
-    
+
     debounceBadgeRedraw: function(fn, wait) {
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(fn, wait);
     },
-    
+
     checkSPAChange: function() {
         if (window.location.href !== this.lastUrl) {
             this.lastUrl = window.location.href;
@@ -366,7 +364,7 @@ const VKPhotoModule = {
             this.addAlbumButton();
         }
     },
-    
+
     initSpaNavigationWatcher: function() {
         this.spaWatcher = setInterval(() => { this.checkSPAChange(); }, VK_API.SPA_CHECK_INTERVAL);
         if (!window._sfPopstateAttached) {
@@ -374,7 +372,7 @@ const VKPhotoModule = {
             window.addEventListener('popstate', () => { this.checkSPAChange(); });
         }
     },
-    
+
     initObserver: function() {
         if (this.observer) return;
         this.observer = new MutationObserver(() => {
@@ -382,11 +380,10 @@ const VKPhotoModule = {
                 if (this.startId || this.endId || this.pickedPhotos.length > 0 || this.selectionMode) {
                     this.drawBadges();
                 }
-                // Panel visibility logic removed - panel stays visible
             }, VK_API.DEBOUNCE_DELAY);
         });
     },
-    
+
     startObserver: function() {
         if (this.observerActive) return;
         if (!this.observer) this.initObserver();
@@ -395,18 +392,18 @@ const VKPhotoModule = {
             this.observerActive = true;
         } catch (e) { console.warn('[VK Photo] Observer start failed:', e); }
     },
-    
+
     stopObserver: function() {
         if (!this.observerActive) return;
         try { this.observer.disconnect(); this.observerActive = false; } catch (e) {}
     },
-    
+
     syncPanelVisibility: function() {
         // Панель больше не скрывается.
         // Она всегда висит на месте, чтобы был виден процесс сканирования/скачивания.
         // Блокировка кнопок реализована напрямую в initPanelEvents через isViewerOpen().
     },
-    
+
     drawBadges: function() {
         if (this.isDrawing) return;
         this.isDrawing = true;
@@ -420,7 +417,7 @@ const VKPhotoModule = {
                 if (link.closest('#sf-dl-panel')) return;
                 if (!link.href.match(/photo-?\d+_\d+/)) return;
 
-                const match = (link.getAttribute('onclick') || '').match(/showPhoto\(['"](-?\d+_\d+)['"]/)
+                const match = (link.getAttribute('onclick') || '').match(/showPhoto\([' "](-?\d+_\d+)[' "]/)
                            || link.href.match(/photo(-?\d+_\d+)/);
                 if (!match || !match[1]) return;
 
@@ -456,7 +453,7 @@ const VKPhotoModule = {
         } catch (e) { console.error(e); }
         finally { this.isDrawing = false; }
     },
-    
+
     checkAlbumChange: function() {
         const currentAlbumId = this.getAlbumIdFromUrl();
         if (currentAlbumId !== this.lastAlbumId) {
@@ -466,12 +463,12 @@ const VKPhotoModule = {
             if (currentAlbumId) this.loadPickedState();
         }
     },
-    
+
     getAlbumIdFromUrl: function() {
         const m = window.location.href.match(/album(-?\d+_\d+)/);
         return m ? m[1] : null;
     },
-    
+
     getListParam: function() {
         const m = window.location.href.match(/album(-?\d+_\d+)/);
         if (m) return 'album' + m[1];
@@ -484,7 +481,7 @@ const VKPhotoModule = {
         }
         return null;
     },
-    
+
     resetState: function(clearPrefix) {
         this.abortFlag = true;
         if (this.currentRequestTracker && this.currentRequestTracker.xhr) { try { this.currentRequestTracker.xhr.abort(); } catch(e) {} }
@@ -514,7 +511,7 @@ const VKPhotoModule = {
         const sizeHeader = document.getElementById('sf-size-header'); if (sizeHeader) sizeHeader.textContent = 'РАЗМЕР (МБ)';
         const sizeEl = document.getElementById('sf-size'); if (sizeEl) sizeEl.textContent = '--';
     },
-    
+
     createPanel: function() {
         if (document.getElementById('sf-dl-panel')) return;
         const panel = document.createElement('div');
@@ -526,16 +523,16 @@ const VKPhotoModule = {
         this.initDragDrop();
         if (!this.gmSupported) { this.updateStatus('Ошибка: нет GM_download', 'red'); document.getElementById('sf-btn-run').disabled = true; }
     },
-    
+
     initPanelEvents: function() {
         document.getElementById('sf-close-btn').onclick = () => { this.hidePanel(); };
         document.getElementById('sf-clear-prefix').onclick = () => { document.getElementById('sf-prefix').value = ''; };
-        
+
         // Защита кнопок от нажатия при скачивании ИЛИ при открытом просмотрщике
         document.getElementById('sf-btn-a').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('start'); else this.togglePicking(); };
         document.getElementById('sf-btn-b').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; if (this.mode === 'range') this.setMode('end'); else this.stopPicking(); };
         document.getElementById('sf-btn-run').onclick = () => { if(this.isDownloading || this.isViewerOpen()) return; this.runDownload(); };
-        
+
         const toggleHandler = () => { if(this.isDownloading || this.isViewerOpen()) return; this.switchMode(this.mode === 'range' ? 'pick' : 'range'); };
         const lblRange = document.getElementById('lbl-range');
         const lblPick = document.getElementById('lbl-pick');
@@ -544,17 +541,17 @@ const VKPhotoModule = {
         lblPick.onclick = toggleHandler;
         lblPick.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHandler(); } };
     },
-    
+
     updateToggleUI: function(isRange) {
         const lblRange = document.getElementById('lbl-range');
         const lblPick = document.getElementById('lbl-pick');
         const btnA = document.getElementById('sf-btn-a');
         const btnB = document.getElementById('sf-btn-b');
         if (!btnA || !btnB) return;
-        
+
         lblRange.className = 'sf-toggle-label';
         lblPick.className = 'sf-toggle-label';
-        
+
         if (isRange) {
             lblRange.classList.add('active-blue');
             btnA.textContent = 'Начало'; btnB.textContent = 'Конец';
@@ -565,7 +562,7 @@ const VKPhotoModule = {
             btnA.disabled = false; btnB.disabled = false;
         }
     },
-    
+
     switchMode: function(newMode) {
         if (this.mode === 'pick') {
             this.clearStorage();
@@ -583,36 +580,36 @@ const VKPhotoModule = {
         }
         this.updateLabels();
     },
-    
+
     setRunButtonDisabled: function(disabled) { const btn = document.getElementById('sf-btn-run'); if (btn) btn.disabled = disabled; },
-    
+
     toggleDownloadBtn: function(forceEnable) {
         const btn = document.getElementById('sf-btn-run'); if (!btn) return;
         const isValid = forceEnable || (this.mode === 'range' && this.cachedPhotos.length > 0) || (this.mode === 'pick' && !this.isPicking && this.pickedPhotos.length > 0);
         btn.disabled = !isValid;
     },
-    
+
     setProgress: function(percent) {
         const bar = document.getElementById('sf-status-progress-bg'); if (!bar) return;
         if (percent <= 0) { bar.classList.add('sf-progress-hidden'); setTimeout(() => { if (bar.classList.contains('sf-progress-hidden')) bar.style.width = '0%'; }, VK_API.PROGRESS_FADE_DELAY); }
         else { bar.classList.remove('sf-progress-hidden'); bar.style.width = percent + '%'; }
     },
-    
+
     updateStatus: function(text, color) { const el = document.getElementById('sf-status-text'); if (!el) return; el.textContent = text; el.className = 'sf-status-text'; if (color) el.classList.add(color); },
-    
+
     updateLabels: function() {
         const startEl = document.getElementById('sf-start-off'); const endEl = document.getElementById('sf-end-off');
         const countEl = document.getElementById('sf-count'); const sizeEl = document.getElementById('sf-size');
         const sizeHeader = document.getElementById('sf-size-header'); if (!startEl || !endEl || !countEl || !sizeEl) return;
-        
+
         startEl.textContent = this.startReal !== null ? `#${this.startReal}` : '#--';
         endEl.textContent = this.endReal !== null ? `#${this.endReal}` : '#--';
-        
+
         let countText = '0';
         if (this.mode === 'range') { if (this.startReal !== null && this.endReal !== null) countText = Math.abs(this.endReal - this.startReal) + 1; }
         else { countText = this.pickedPhotos.length; }
         countEl.textContent = countText;
-        
+
         const totalBytes = this.mode === 'range' ? this.totalBytesRange : this.totalPickSize;
         if (totalBytes > 0) {
             const mb = totalBytes / (1024 * 1024);
@@ -620,16 +617,17 @@ const VKPhotoModule = {
             else { sizeEl.textContent = mb.toFixed(2); if (sizeHeader) sizeHeader.textContent = 'РАЗМЕР (МБ)'; }
         } else { sizeEl.textContent = '--'; if (sizeHeader) sizeHeader.textContent = 'РАЗМЕР (МБ)'; }
     },
-    
+
     showPanel: function() { if (!this.uiPanel) this.createPanel(); this.uiPanel.style.display = 'block'; this.updateToggleUI(this.mode === 'range'); this.updateStatus('Готов', 'blue'); this.toggleDownloadBtn(); this.drawBadges(); this.startObserver(); },
-    
+
     hidePanel: function() {
         this.clearStorage();
         this.resetState(false);
         if (this.uiPanel) this.uiPanel.style.display = 'none';
         this.stopObserver();
+        if (this.spaWatcher) { clearInterval(this.spaWatcher); this.spaWatcher = null; }
     },
-    
+
     initDragDrop: function() {
         const header = document.getElementById('sf-header'); const panel = this.uiPanel;
         header.addEventListener('mousedown', (e) => {
@@ -640,9 +638,9 @@ const VKPhotoModule = {
             document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
         });
     },
-    
+
     addAlbumButton: function() { document.querySelectorAll('.photos_album_intro_info').forEach(h => { if (!h.querySelector('.sf-open-panel-btn')) { const btn = document.createElement('a'); btn.href = '#'; btn.className = 'sf-open-panel-btn'; btn.textContent = 'Менеджер фото'; btn.style.cssText = 'margin-left:10px; color:#2a5885; font-weight:bold; cursor:pointer;'; btn.onclick = (e) => { e.preventDefault(); this.showPanel(); }; h.appendChild(btn); } }); },
-    
+
     initClickListener: function() {
         if (window.sfListenerAttached) return;
         window.sfListenerAttached = true;
@@ -652,29 +650,29 @@ const VKPhotoModule = {
 
             const isRangeMode = VKPhotoModule.mode === 'range' && VKPhotoModule.selectionMode;
             const isPickMode = VKPhotoModule.mode === 'pick' && VKPhotoModule.isPicking;
-            
+
             if (isRangeMode || isPickMode) {
                 const link = e.target.closest('a'); let isPhoto = false;
-                if (link && link.href.match(/photo-?\d+_\d+/)) { const match = (link.getAttribute('onclick') || '').match(/showPhoto\(['"](-?\d+_\d+)['"]/) || link.href.match(/photo(-?\d+_\d+)/); if (match && match[1]) isPhoto = true; }
+                if (link && link.href.match(/photo-?\d+_\d+/)) { const match = (link.getAttribute('onclick') || '').match(/showPhoto\([' "](-?\d+_\d+)[' "]/) || link.href.match(/photo(-?\d+_\d+)/); if (match && match[1]) isPhoto = true; }
                 if (isPhoto) {
                     e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                    const match = (link.getAttribute('onclick') || '').match(/showPhoto\(['"](-?\d+_\d+)['"]/) || link.href.match(/photo(-?\d+_\d+)/);
+                    const match = (link.getAttribute('onclick') || '').match(/showPhoto\([' "](-?\d+_\d+)[' "]/) || link.href.match(/photo(-?\d+_\d+)/);
                     const listParam = VKPhotoModule.getListParam();
                     if (match[1] && listParam) VKPhotoModule.handlePhotoClick(match[1], listParam);
                 } else { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); VKPhotoModule.updateStatus('Выберите фото', 'red'); }
             }
         }, true);
     },
-    
+
     _getVisualIndexFromDOM: function(photoId) {
         const cleanId = String(getCleanId(photoId));
         const containers = document.querySelectorAll(VK_SELECTORS.PHOTO_ROWS);
         const allLinks = containers.length ? Array.from(containers).reduce((acc, c) => acc.concat(Array.from(c.querySelectorAll(VK_SELECTORS.PHOTO_LINK))), []) : Array.from(document.querySelectorAll(VK_SELECTORS.PHOTO_LINK));
         const photoLinks = allLinks.filter(link => { if (link.closest('#sf-dl-panel')) return false; return !!link.href.match(/photo-?\d+_\d+/); });
-        const idx = photoLinks.findIndex(link => { const m = (link.getAttribute('onclick') || '').match(/showPhoto\(['"](-?\d+_\d+)['"]/) || link.href.match(/photo(-?\d+_\d+)/); return m && String(getCleanId(m[1])) === cleanId; });
+        const idx = photoLinks.findIndex(link => { const m = (link.getAttribute('onclick') || '').match(/showPhoto\([' "](-?\d+_\d+)[' "]/) || link.href.match(/photo(-?\d+_\d+)/); return m && String(getCleanId(m[1])) === cleanId; });
         return idx !== -1 ? idx + 1 : null;
     },
-    
+
     _fetchTotal: function(listParam) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest(); xhr.open('POST', '/al_photos.php', true); xhr.timeout = VK_API.TOTAL_FETCH_TIMEOUT;
@@ -683,7 +681,7 @@ const VKPhotoModule = {
             const fd = new FormData(); fd.append('act', 'show'); fd.append('al', '1'); fd.append('list', listParam); fd.append('offset', '0'); fd.append('count', '1'); xhr.send(fd);
         });
     },
-    
+
     _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
         if (this.abortFlag) return;
         const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
@@ -695,16 +693,22 @@ const VKPhotoModule = {
         this.updateLabels(); this.drawBadges();
         if (this.startReal !== null && this.endReal !== null) { this.startAutoCalculation(); }
     },
-    
+
     setMode: function(type) {
-        if (this.isScanning) { this.resetState(false); }
+        if (this.isScanning || this.selectionMode) { this.resetState(false); }
         this.abortFlag = false; this.selectionMode = type;
+        // При выборе второй границы не сбрасываем первую
+        if (type === 'start' && this.endId !== null) {
+            // Конец уже выбран, начало меняем - конец сохраняем
+        } else if (type === 'end' && this.startId !== null) {
+            // Начало уже выбрано, конец меняем - начало сохраняем
+        }
         document.body.classList.add('sf-selecting-mode');
         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
         if (type === 'start' && btnA) btnA.classList.add('active'); if (type === 'end' && btnB) btnB.classList.add('active');
     },
-    
+
     handlePhotoClick: function(photoId, listParam) {
         if (this.mode === 'range' && this.selectionMode) {
             if (this.isFetchingMeta) return; this.updateStatus('Анализ...', 'blue'); this.isFetchingMeta = true;
@@ -715,7 +719,7 @@ const VKPhotoModule = {
             this._fetchTotal(listParam).then(total => { if (this.abortFlag) return; this._applyRangeSelection(photoId, visualIndex, total, isReverse); }).catch(e => { this.updateStatus('Ошибка: ' + e.message, 'red'); this.isFetchingMeta = false; });
         } else if (this.mode === 'pick' && this.isPicking) { this.handlePickClick(photoId, listParam); }
     },
-    
+
     startAutoCalculation: function() {
         this.isScanning = true;
         this.setRunButtonDisabled(true);
@@ -727,11 +731,11 @@ const VKPhotoModule = {
         .then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
         .catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
     },
-    
+
     // PICK MODE
     togglePicking: function() { if (this.isScanning || this.isDownloading) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
     stopPicking: function() { this.isPicking = false; document.body.classList.remove('sf-selecting-mode'); this.updateStatus('Готов', 'green'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = false; if (btnB) btnB.disabled = true; this.toggleDownloadBtn(); },
-    
+
     handlePickClick: function(photoId, listParam) {
         const cleanId = String(getCleanId(photoId)); if (this.pendingRequests[photoId]) return;
         const existIndex = this.pickedPhotos.findIndex(p => String(getCleanId(p.id)) === cleanId);
@@ -741,7 +745,7 @@ const VKPhotoModule = {
         xhr.onerror = () => { delete this.pendingRequests[photoId]; this.updateStatus('Ошибка сети', 'red'); this.drawBadges(); };
         const formData = new FormData(); formData.append('act', 'show'); formData.append('al', '1'); formData.append('photo', photoId); formData.append('list', listParam); formData.append('offset', '0'); xhr.send(formData);
     },
-    
+
     // DOWNLOAD
     runDownload: function() {
         if (this.isDownloading) return; let photos = [];
@@ -752,7 +756,7 @@ const VKPhotoModule = {
         const links = photos.map((p, i) => ({ url: p.url, filename: (prefix ? `${prefix}_VK_` : 'VK_') + String(i + 1).padStart(width, '0') + '.jpg' }));
         this.startDownloadQueue(links);
     },
-    
+
     startDownloadQueue: async function(links) {
         this.updateStatus('Загрузка...', 'blue'); const useFallback = typeof GM_download === 'undefined';
         if (useFallback && links.length > VK_API.FALLBACK_TAB_THRESHOLD) { if (!confirm(`Внимание! Будет открыто ${links.length} новых вкладок. Продолжить?`)) { this._finishDownload('Отменено', 'red'); return; } }
@@ -764,9 +768,9 @@ const VKPhotoModule = {
         }
         this._finishDownload('✓ Готово!', 'green');
     },
-    
+
     _finishDownload: function(statusText, color) { this.updateStatus(statusText, color); this.isDownloading = false; this.setProgress(0); this.updateToggleUI(this.mode === 'range'); },
-    
+
     calculateRealIndex: function(visualIndex, total, isReverse) { return isReverse ? (total - visualIndex + 1) : visualIndex; }
 };
 VKPhotoModule.init();
