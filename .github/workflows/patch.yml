@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       file_name:
-        description: 'If src/ >1 file, enter filename. Leave empty for auto-select'
+        description: 'If src/ >1 file, enter filename or skip'
         required: false
         default: ''
 
@@ -112,11 +112,10 @@ jobs:
               continue
             fi
             
-            fixed_patch="${patch_file}.fixed"
-            sed 's/^\([^+ @-]\)/ \1/' "$patch_file" > "$fixed_patch"
-            sed -i '/^[[:space:]]*$/d' "$fixed_patch"
-            
-            if patch -p1 -f --ignore-whitespace --no-backup-if-mismatch -d . < "$fixed_patch" >> patch_application.log 2>&1; then
+            # git apply ищет по контенту, а не по имени файла
+            # --directory=src говорит искать файл в папке src/
+            # --ignore-space-change игнорирует разницу в пробелах
+            if git apply --directory=src --ignore-space-change "$patch_file" >> patch_application.log 2>&1; then
               echo "SUCCESS" >> patch_application.log
               echo "$patch_name" >> applied_list.txt
               success_count=$((success_count + 1))
