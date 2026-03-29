@@ -1,5 +1,5 @@
---- a/vk_photo_down_v5.7.3.js
-+++ b/vk_photo_down_v5.7.3.js
+--- a/vk_photo_downloader.js
++++ b/vk_photo_downloader.js
 @@ -1,17 +1,17 @@
  // ==UserScript==
 -// @name         VK Photos Downloader (Unified v5.7.3)
