@@ -53,6 +53,7 @@ const injectStyles = () => {
     if (document.getElementById('sf-styles')) return;
     const style = document.createElement('style');
     style.id = 'sf-styles';
+    // КУРСОР - ОДНА СТРОКА, БЕЗ РАЗРЫВОВ
     const cursorSVG = `image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
     style.textContent = `
 #sf-dl-panel {
@@ -645,13 +646,15 @@ const VKPhotoModule = {
         this.selectionMode = null; this.isFetchingMeta = false;
         document.body.classList.remove('sf-selecting-mode');
         this.updateLabels(); this.drawBadges();
-        if (this.startReal !== null && this.endReal !== null) { this.startAutoCalculation(); }
+        if (this.startReal !== null && this.endReal !== null) { this.isScanning = false; this.startAutoCalculation(); }
     },
 
     setMode: function(type) {
+        // НЕ сбрасываем startId/endId при переключении между началом и концом
         if (this.isScanning) { this.abortFlag = true; }
         this.abortFlag = false;
         this.selectionMode = type;
+        // Границы сохраняются
         document.body.classList.add('sf-selecting-mode');
         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
