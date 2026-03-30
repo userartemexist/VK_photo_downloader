@@ -1,25 +1,17 @@
 --- a/src/vk_photo_downloader.js
 +++ b/src/vk_photo_downloader.js
-@@ -64,7 +64,7 @@
-     const style = document.createElement('style');
-     style.id = 'sf-styles';
+@@ -66,3 +66,3 @@
      // КУРСОР - ОДНА СТРОКА, БЕЗ РАЗРЫВОВ
 -    const cursorSVG = `image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
 +    const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
      style.textContent = `
- #sf-dl-panel {
-     position: fixed; top: 80px; left: 50px; width: ${UI_CONSTANTS.PANEL_WIDTH};
-@@ -198,7 +198,7 @@
-     isScanning: false, isDownloading: false, abortFlag: false, isFetchingMeta: false,
-     uiPanel: null, gmSupported: false,
+@@ -200,3 +200,3 @@
      lastAlbumId: null, lastUrl: null, spaWatcher: null,
 -    observer: null, observerActive: false, isDrawing: false, debounceTimer: null,
 -    currentRequestTracker: null, sizeRequestTracker: null,
 +    observer: null, observerActive: false, isDrawing: false, debounceTimer: null, scanGeneration: 0,
 +    currentRequestTracker: null, sizeRequestTracker: null
- 
-     init: function() {
-@@ -358,8 +358,8 @@
+@@ -358,16 +358,15 @@
      setMode: function(type) {
          // НЕ сбрасываем startId/endId при переключении между началом и концом
          if (this.isScanning) { this.abortFlag = true; }
@@ -28,15 +20,16 @@
          this.selectionMode = type;
          // Границы сохраняются
          document.body.classList.add('sf-selecting-mode');
-@@ -368,7 +368,7 @@
+         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
+         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
+         if (type === 'start' && btnA) btnA.classList.add('active');
+         if (type === 'end' && btnB) btnB.classList.add('active');
+     },
  
      _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
 -        if (this.abortFlag) return;
-         const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
-         this.cachedPhotos = []; this.totalBytesRange = 0;
-         if (this.selectionMode === 'start') { this.startVisual = visualIndex; this.startReal = realIndex; this.startId = numericId; this.totalPhotos = total; this.updateStatus(`Начало: #${realIndex}`, 'green'); }
-@@ -384,6 +384,7 @@
- 
+         const numericId = getNumericId(photoId);
+@@ -384,10 +384,11 @@
      startAutoCalculation: function() {
 +        this.abortFlag = false;
          this.isScanning = true;
