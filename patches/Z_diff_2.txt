@@ -11,7 +11,7 @@
 -    currentRequestTracker: null, sizeRequestTracker: null,
 +    observer: null, observerActive: false, isDrawing: false, debounceTimer: null, scanGeneration: 0,
 +    currentRequestTracker: null, sizeRequestTracker: null
-@@ -358,16 +358,15 @@
+@@ -358,36 +358,39 @@
      setMode: function(type) {
          // НЕ сбрасываем startId/endId при переключении между началом и концом
          if (this.isScanning) { this.abortFlag = true; }
@@ -28,8 +28,16 @@
  
      _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
 -        if (this.abortFlag) return;
-         const numericId = getNumericId(photoId);
-@@ -384,10 +384,11 @@
+         const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
+         this.cachedPhotos = []; this.totalBytesRange = 0;
+         if (this.selectionMode === 'start') { this.startVisual = visualIndex; this.startReal = realIndex; this.startId = numericId; this.totalPhotos = total; this.updateStatus(`Начало: #${realIndex}`, 'green'); }
+         else { this.endVisual = visualIndex; this.endReal = realIndex; this.endId = numericId; this.totalPhotos = total; this.updateStatus(`Конец: #${realIndex}`, 'green'); }
+         this.selectionMode = null; this.isFetchingMeta = false;
+         document.body.classList.remove('sf-selecting-mode');
+         this.updateLabels(); this.drawBadges();
+         if (this.startReal !== null && this.endReal !== null) { this.isScanning = false; this.startAutoCalculation(); }
+     },
+ 
      startAutoCalculation: function() {
 +        this.abortFlag = false;
          this.isScanning = true;
