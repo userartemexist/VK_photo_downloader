@@ -1,36 +1,37 @@
 === PATCH APPLICATION LOG ===
-Date: Mon Mar 30 19:01:09 UTC 2026
+Date: Mon Mar 30 19:48:16 UTC 2026
 Files in src/:
 src/vk_photo_downloader.js
 Patches found: 1
 
 === APPLYING PATCHES ===
 
---- Qwen_diff_20260330_6t6rsj275.txt ---
+--- Z_diff_2.txt ---
 Header path: src/vk_photo_downloader.js
-Running: patch -p1 -f --ignore-whitespace < "patches/Qwen_diff_20260330_6t6rsj275.txt"
+Running: patch -p1 -f --ignore-whitespace < "patches/Z_diff_2.txt"
 patching file src/vk_photo_downloader.js
-Hunk #1 succeeded at 54 (offset -10 lines).
-Hunk #2 succeeded at 285 with fuzz 1 (offset 87 lines).
-patch: **** malformed patch at line 31: @@ -368,7 +368,7 @@
-
+Hunk #1 succeeded at 56 (offset -10 lines).
+Hunk #2 succeeded at 287 with fuzz 1 (offset 87 lines).
+Hunk #3 FAILED at 358.
+Hunk #4 succeeded at 678 with fuzz 1 (offset 294 lines).
+1 out of 4 hunks FAILED -- saving rejects to file src/vk_photo_downloader.js.rej
 ✗ FAILED
 Error details:
-         if (this.isScanning) { this.abortFlag = true; }
 -        this.abortFlag = false;
 +        this.scanGeneration++;
          this.selectionMode = type;
          // Границы сохраняются
          document.body.classList.add('sf-selecting-mode');
-@@ -368,7 +368,7 @@
+         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
+         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
+         if (type === 'start' && btnA) btnA.classList.add('active');
+         if (type === 'end' && btnB) btnB.classList.add('active');
+     },
  
      _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
 -        if (this.abortFlag) return;
-         const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
-         this.cachedPhotos = []; this.totalBytesRange = 0;
-         if (this.selectionMode === 'start') { this.startVisual = visualIndex; this.startReal = realIndex; this.startId = numericId; this.totalPhotos = total; this.updateStatus(`Начало: #${realIndex}`, 'green'); }
-@@ -384,6 +384,7 @@
- 
+         const numericId = getNumericId(photoId);
+@@ -384,10 +384,11 @@
      startAutoCalculation: function() {
 +        this.abortFlag = false;
          this.isScanning = true;

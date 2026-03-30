@@ -1,0 +1,20 @@
+--- src/vk_photo_downloader.js
++++ src/vk_photo_downloader.js
+@@ -358,16 +358,15 @@
+     setMode: function(type) {
+         // НЕ сбрасываем startId/endId при переключении между началом и концом
+         if (this.isScanning) { this.abortFlag = true; }
+-        this.abortFlag = false;
++        this.scanGeneration++;
+         this.selectionMode = type;
+         // Границы сохраняются
+         document.body.classList.add('sf-selecting-mode');
+         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
+         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
+         if (type === 'start' && btnA) btnA.classList.add('active');
+         if (type === 'end' && btnB) btnB.classList.add('active');
+     },
+ 
+     _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
+-        if (this.abortFlag) return;
+         const numericId = getNumericId(photoId);
