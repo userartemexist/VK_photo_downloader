@@ -1,7 +1,9 @@
 === PATCH APPLICATION LOG ===
-Date: Mon Mar 30 19:48:16 UTC 2026
+Date: Mon Mar 30 20:45:37 UTC 2026
 Files in src/:
 src/vk_photo_downloader.js
+src/vk_photo_downloader.js.orig
+src/vk_photo_downloader.js.rej
 Patches found: 1
 
 === APPLYING PATCHES ===
@@ -10,28 +12,27 @@ Patches found: 1
 Header path: src/vk_photo_downloader.js
 Running: patch -p1 -f --ignore-whitespace < "patches/Z_diff_2.txt"
 patching file src/vk_photo_downloader.js
-Hunk #1 succeeded at 56 (offset -10 lines).
-Hunk #2 succeeded at 287 with fuzz 1 (offset 87 lines).
-Hunk #3 FAILED at 358.
-Hunk #4 succeeded at 678 with fuzz 1 (offset 294 lines).
-1 out of 4 hunks FAILED -- saving rejects to file src/vk_photo_downloader.js.rej
+Hunk #1 FAILED at 66.
+Hunk #2 FAILED at 200.
+patch: **** malformed patch at line 55:  
+
 ✗ FAILED
 Error details:
--        this.abortFlag = false;
-+        this.scanGeneration++;
-         this.selectionMode = type;
-         // Границы сохраняются
-         document.body.classList.add('sf-selecting-mode');
-         this.updateStatus(`Выбор: ${type === 'start' ? 'Начало' : 'Конец'}`, 'blue');
-         const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b');
-         if (type === 'start' && btnA) btnA.classList.add('active');
          if (type === 'end' && btnB) btnB.classList.add('active');
      },
  
      _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
 -        if (this.abortFlag) return;
-         const numericId = getNumericId(photoId);
-@@ -384,10 +384,11 @@
+         const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
+         this.cachedPhotos = []; this.totalBytesRange = 0;
+         if (this.selectionMode === 'start') { this.startVisual = visualIndex; this.startReal = realIndex; this.startId = numericId; this.totalPhotos = total; this.updateStatus(`Начало: #${realIndex}`, 'green'); }
+         else { this.endVisual = visualIndex; this.endReal = realIndex; this.endId = numericId; this.totalPhotos = total; this.updateStatus(`Конец: #${realIndex}`, 'green'); }
+         this.selectionMode = null; this.isFetchingMeta = false;
+         document.body.classList.remove('sf-selecting-mode');
+         this.updateLabels(); this.drawBadges();
+         if (this.startReal !== null && this.endReal !== null) { this.isScanning = false; this.startAutoCalculation(); }
+     },
+ 
      startAutoCalculation: function() {
 +        this.abortFlag = false;
          this.isScanning = true;
