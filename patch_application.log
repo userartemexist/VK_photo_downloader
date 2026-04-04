@@ -1,9 +1,7 @@
 === PATCH APPLICATION LOG ===
-Date: Mon Mar 30 20:45:37 UTC 2026
+Date: Sat Apr  4 08:53:36 UTC 2026
 Files in src/:
 src/vk_photo_downloader.js
-src/vk_photo_downloader.js.orig
-src/vk_photo_downloader.js.rej
 Patches found: 1
 
 === APPLYING PATCHES ===
@@ -12,46 +10,12 @@ Patches found: 1
 Header path: src/vk_photo_downloader.js
 Running: patch -p1 -f --ignore-whitespace < "patches/Z_diff_2.txt"
 patching file src/vk_photo_downloader.js
-Hunk #1 FAILED at 66.
-Hunk #2 FAILED at 200.
-patch: **** malformed patch at line 55:  
-
-✗ FAILED
-Error details:
-         if (type === 'end' && btnB) btnB.classList.add('active');
-     },
- 
-     _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
--        if (this.abortFlag) return;
-         const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
-         this.cachedPhotos = []; this.totalBytesRange = 0;
-         if (this.selectionMode === 'start') { this.startVisual = visualIndex; this.startReal = realIndex; this.startId = numericId; this.totalPhotos = total; this.updateStatus(`Начало: #${realIndex}`, 'green'); }
-         else { this.endVisual = visualIndex; this.endReal = realIndex; this.endId = numericId; this.totalPhotos = total; this.updateStatus(`Конец: #${realIndex}`, 'green'); }
-         this.selectionMode = null; this.isFetchingMeta = false;
-         document.body.classList.remove('sf-selecting-mode');
-         this.updateLabels(); this.drawBadges();
-         if (this.startReal !== null && this.endReal !== null) { this.isScanning = false; this.startAutoCalculation(); }
-     },
- 
-     startAutoCalculation: function() {
-+        this.abortFlag = false;
-         this.isScanning = true;
-         this.setRunButtonDisabled(true);
-         this.updateStatus('Получение ссылок...', 'blue');
-         this.currentRequestTracker = { xhr: null };
-+        const gen = this.scanGeneration;
-         const minReal = Math.min(this.startReal, this.endReal); const maxReal = Math.max(this.startReal, this.endReal);
-         const count = maxReal - minReal + 1; const offset = minReal - 1;
-         getPhotosByOffset(this.getListParam(), offset, count, (cur, total, bytes) => { this.totalBytesRange = bytes; this.updateStatus(`Скан: ${cur}/${total}`, 'blue'); this.updateLabels(); this.setProgress(cur / total * 100); }, () => this.abortFlag, (msg, color) => this.updateStatus(msg, color), this.currentRequestTracker, this.sizeRequestTracker)
--        .then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
--        .catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
-+        .then((result) => { if (gen !== this.scanGeneration) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
-+        .catch((e) => { if (gen !== this.scanGeneration) return; if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
-     },
+Hunk #1 succeeded at 55 with fuzz 2 (offset -10 lines).
+✓ SUCCESS
 
 === SUMMARY ===
 Total patches: 1
-Applied: 0
+Applied: 1
 Skipped (already applied): 0
 Skipped (file not found): 0
-Failed: 1
+Failed: 0
