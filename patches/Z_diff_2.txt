@@ -1,17 +1,19 @@
 --- a/src/vk_photo_downloader.js
 +++ b/src/vk_photo_downloader.js
-@@ -66,3 +66,3 @@
+@@ -65,3 +65,3 @@
+     style.id = 'sf-styles';
      // КУРСОР - ОДНА СТРОКА, БЕЗ РАЗРЫВОВ
 -    const cursorSVG = `image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
 +    const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
      style.textContent = `
-@@ -200,3 +200,3 @@
+@@ -199,4 +199,4 @@
      lastAlbumId: null, lastUrl: null, spaWatcher: null,
 -    observer: null, observerActive: false, isDrawing: false, debounceTimer: null,
 -    currentRequestTracker: null, sizeRequestTracker: null,
 +    observer: null, observerActive: false, isDrawing: false, debounceTimer: null, scanGeneration: 0,
 +    currentRequestTracker: null, sizeRequestTracker: null
-@@ -358,36 +358,39 @@
+     init: function() {
+@@ -358,10 +358,9 @@
      setMode: function(type) {
          // НЕ сбрасываем startId/endId при переключении между началом и концом
          if (this.isScanning) { this.abortFlag = true; }
@@ -25,19 +27,11 @@
          if (type === 'start' && btnA) btnA.classList.add('active');
          if (type === 'end' && btnB) btnB.classList.add('active');
      },
- 
      _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
 -        if (this.abortFlag) return;
          const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
          this.cachedPhotos = []; this.totalBytesRange = 0;
-         if (this.selectionMode === 'start') { this.startVisual = visualIndex; this.startReal = realIndex; this.startId = numericId; this.totalPhotos = total; this.updateStatus(`Начало: #${realIndex}`, 'green'); }
-         else { this.endVisual = visualIndex; this.endReal = realIndex; this.endId = numericId; this.totalPhotos = total; this.updateStatus(`Конец: #${realIndex}`, 'green'); }
-         this.selectionMode = null; this.isFetchingMeta = false;
-         document.body.classList.remove('sf-selecting-mode');
-         this.updateLabels(); this.drawBadges();
-         if (this.startReal !== null && this.endReal !== null) { this.isScanning = false; this.startAutoCalculation(); }
-     },
- 
+@@ -384,12 +384,14 @@
      startAutoCalculation: function() {
 +        this.abortFlag = false;
          this.isScanning = true;
