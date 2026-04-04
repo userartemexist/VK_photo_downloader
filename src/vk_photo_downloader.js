@@ -54,9 +54,8 @@ const injectStyles = () => {
     const style = document.createElement('style');
     style.id = 'sf-styles';
     // КУРСОР - ОДНА СТРОКА, БЕЗ РАЗРЫВОВ
-    const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
-    style.textContent = `
-#sf-dl-panel {
+    const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width=48 height=48 viewBox="0 0 48 48"><line x1=24 y1=4 x2=24 y2=16 stroke=black stroke-width=10/><line x1=24 y1=32 x2=24 y2=44 stroke=black stroke-width=10/><line x1=4 y1=24 x2=16 y2=24 stroke=black stroke-width=10/><line x1=32 y1=24 x2=44 y2=24 stroke=black stroke-width=10/><circle cx=24 cy=24 r=3 fill=black/></svg>`;
+    #sf-dl-panel {
     position: fixed; top: 80px; left: 50px; width: ${UI_CONSTANTS.PANEL_WIDTH};
     background: #fff; border: 1px solid #ccc; z-index: ${UI_CONSTANTS.Z_INDEX_PANEL};
     box-shadow: 0 0 15px rgba(0,0,0,0.3); border-radius: 8px;
