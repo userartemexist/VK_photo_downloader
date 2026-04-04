@@ -53,9 +53,10 @@ const injectStyles = () => {
     if (document.getElementById('sf-styles')) return;
     const style = document.createElement('style');
     style.id = 'sf-styles';
-    // КУРСОР - ОДНА СТРОКА, БЕЗ РАЗРЫВОВ
-    const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><line x1='24' y1='4' x2='24' y2='16' stroke='black' stroke-width='10'/><line x1='24' y1='32' x2='24' y2='44' stroke='black' stroke-width='10'/><line x1='4' y1='24' x2='16' y2='24' stroke='black' stroke-width='10'/><line x1='32' y1='24' x2='44' y2='24' stroke='black' stroke-width='10'/><circle cx='24' cy='24' r='3' fill='black'/></svg>`;
-    #sf-dl-panel {
+    // КУРСОР - ОДНА СТРОКА, БЕЗ РАЗРЫВОВ, БЕЗ ОДИНАРНЫХ КАВЫЧЕК
+    const cursorSVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width=48 height=48 viewBox="0 0 48 48"><line x1=24 y1=4 x2=24 y2=16 stroke=black stroke-width=10/><line x1=24 y1=32 x2=24 y2=44 stroke=black stroke-width=10/><line x1=4 y1=24 x2=16 y2=24 stroke=black stroke-width=10/><line x1=32 y1=24 x2=44 y2=24 stroke=black stroke-width=10/><circle cx=24 cy=24 r=3 fill=black/></svg>`;
+    style.textContent = `
+#sf-dl-panel {
     position: fixed; top: 80px; left: 50px; width: ${UI_CONSTANTS.PANEL_WIDTH};
     background: #fff; border: 1px solid #ccc; z-index: ${UI_CONSTANTS.Z_INDEX_PANEL};
     box-shadow: 0 0 15px rgba(0,0,0,0.3); border-radius: 8px;
@@ -284,7 +285,7 @@ const VKPhotoModule = {
     isScanning: false, isDownloading: false, abortFlag: false, isFetchingMeta: false,
     uiPanel: null, gmSupported: false,
     lastAlbumId: null, lastUrl: null, spaWatcher: null,
-    observer: null, observerActive: false, isDrawing: false, debounceTimer: null,
+    observer: null, observerActive: false, isDrawing: false, debounceTimer: null, scanGeneration: 0,
     currentRequestTracker: null, sizeRequestTracker: null,
 
     init: function() {
@@ -637,7 +638,6 @@ const VKPhotoModule = {
     },
 
     _applyRangeSelection: function(photoId, visualIndex, total, isReverse) {
-        if (this.abortFlag) return;
         const numericId = getNumericId(photoId); const realIndex = this.calculateRealIndex(visualIndex, total, isReverse);
         this.cachedPhotos = []; this.totalBytesRange = 0;
         if (this.selectionMode === 'start') { this.startVisual = visualIndex; this.startReal = realIndex; this.startId = numericId; this.totalPhotos = total; this.updateStatus(`Начало: #${realIndex}`, 'green'); }
@@ -651,7 +651,7 @@ const VKPhotoModule = {
     setMode: function(type) {
         // НЕ сбрасываем startId/endId при переключении между началом и концом
         if (this.isScanning) { this.abortFlag = true; }
-        this.abortFlag = false;
+        this.scanGeneration++;
         this.selectionMode = type;
         // Границы сохраняются
         document.body.classList.add('sf-selecting-mode');
@@ -675,15 +675,17 @@ const VKPhotoModule = {
     },
 
     startAutoCalculation: function() {
+        this.abortFlag = false;
         this.isScanning = true;
         this.setRunButtonDisabled(true);
         this.updateStatus('Получение ссылок...', 'blue');
         this.currentRequestTracker = { xhr: null };
+        const gen = this.scanGeneration;
         const minReal = Math.min(this.startReal, this.endReal); const maxReal = Math.max(this.startReal, this.endReal);
         const count = maxReal - minReal + 1; const offset = minReal - 1;
         getPhotosByOffset(this.getListParam(), offset, count, (cur, total, bytes) => { this.totalBytesRange = bytes; this.updateStatus(`Скан: ${cur}/${total}`, 'blue'); this.updateLabels(); this.setProgress(cur / total * 100); }, () => this.abortFlag, (msg, color) => this.updateStatus(msg, color), this.currentRequestTracker, this.sizeRequestTracker)
-        .then((result) => { if (this.abortFlag) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
-        .catch((e) => { if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
+        .then((result) => { if (gen !== this.scanGeneration) return; result.photos.sort((a, b) => a.numericId - b.numericId); this.cachedPhotos = result.photos; this.totalBytesRange = result.totalBytes; this.updateLabels(); this.setProgress(0); const countVal = Math.abs(this.endReal - this.startReal) + 1; if (this.cachedPhotos.length === countVal) this.updateStatus(`✓ Готово: ${countVal}`, 'green'); else this.updateStatus(`Внимание: ${this.cachedPhotos.length}/${countVal}`, 'orange'); this.isScanning = false; this.toggleDownloadBtn(true); })
+        .catch((e) => { if (gen !== this.scanGeneration) return; if (e.message !== 'Aborted') this.updateStatus('Ошибка: ' + e.message, 'red'); this.isScanning = false; this.setProgress(0); });
     },
 
     togglePicking: function() { if (this.isScanning || this.isDownloading) return; this.abortFlag = false; this.isPicking = true; document.body.classList.add('sf-selecting-mode'); this.updateStatus('Подбор... (кликните фото)', 'blue'); const btnA = document.getElementById('sf-btn-a'); const btnB = document.getElementById('sf-btn-b'); if (btnA) btnA.disabled = true; if (btnB) btnB.disabled = false; },
